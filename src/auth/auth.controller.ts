@@ -16,7 +16,7 @@ export class AuthController {
   @Public()
   @UseGuards(LocalAuthGuard) // ✅ Usa Local para autenticar con usuario/contraseña
   @Post('login')
-  async login(@Req() req, @Body() dto: LoginDto,@Res({ passthrough: true }) res: Response) {
+  async login(@Req() req: Request, @Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     // req.user ya incluye { id, usuario, nombre, email, roles }
     const { access_token, user } = await this.authService.login(req.user);
 
@@ -34,13 +34,13 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Req() req) {
+  getProfile(@Req() req: Request) {
     return req.user;
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(@Req() req) {
+  me(@Req() req: Request) {
     
     return req.user;
   }
