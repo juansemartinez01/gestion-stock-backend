@@ -7,7 +7,8 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build
+RUN npx nest build
+
 
 # Etapa de producción
 FROM node:20 as production
