@@ -1,36 +1,31 @@
-# Etapa de build
-FROM node:20 as builder
+# Stage 1: build
+FROM node:18-alpine AS builder
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-# Copiamos los archivos necesarios para instalar dependencias
+# Copiamos deps y lockfile para cache
 COPY package*.json ./
+RUN npm ci
 
-# Instalamos todas las dependencias (incluye dev)
-RUN npm install
-RUN npm install -g @nestjs/cli
-
-# Copiamos el resto del código fuente
+# Copiamos el resto del código y compilamos
 COPY . .
+RUN npm run build
 
-# Compilamos usando el tsconfig adecuado
-RUN rm -rf dist
-RUN npx tsc --project tsconfig.build.json
+# Stage 2: producción
+FROM node:18-alpine
 
-# Etapa de producción
-FROM node:20 as production
+WORKDIR /usr/src/app
 
-WORKDIR /app
+# Sólo copiamos lo necesario: build + package.json + node_modules de prod
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/package.json ./
+COPY --from=builder /usr/src/app/node_modules ./node_modules
 
-# Copiamos solo lo necesario desde la etapa de build
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
+# Variables de entorno
+ENV NODE_ENV=production
 
-# Instalamos solo dependencias necesarias para producción
-RUN npm install --omit=dev
-
-# Puerto por defecto
+# Puerto expuesto
 EXPOSE 3000
 
-# Comando para ejecutar la app NestJS
-CMD ["node", "dist/main.js"]
+# Comando de arranque
+CMD ["node", "dist/src/main.js"]

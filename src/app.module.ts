@@ -23,17 +23,15 @@ import { OrdenCompraModule } from './orden-compra/orden-compra.module';
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: +(process.env.DB_PORT || 5432),
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      autoLoadEntities: true,
-      synchronize: true,      // en dev true, en prod false
-      migrations: ['dist/migrations/*.js'],
-      // Removed 'cli' property as it is not valid
-    }),
+  type: 'postgres',
+  host: process.env.PGHOST,
+  port: +(process.env.PGPORT || 5432),
+  username: process.env.POSTGRES_USER,
+  password: process.env.PGPASSWORD,
+  database: process.env.POSTGRES_DB,
+  autoLoadEntities: true,
+  synchronize: false,
+}),
     CategoriaModule,
     ProveedorModule,
     AlmacenModule,
