@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copiamos los archivos necesarios para instalar dependencias
 COPY package*.json ./
+COPY .env.production .env.production
 
 # Instalamos todas las dependencias (dev incluidas)
 RUN npm install
