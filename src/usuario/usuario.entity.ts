@@ -1,5 +1,5 @@
-import { UsuarioRol } from 'src/usuario-rol/usuario-rol.entity';
-import { Venta } from 'src/venta/venta.entity';
+import { UsuarioRol } from '../usuario-rol/usuario-rol.entity';
+import { Venta } from '../venta/venta.entity';
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 
 @Entity('usuarios')

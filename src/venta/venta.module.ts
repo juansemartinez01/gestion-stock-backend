@@ -8,7 +8,7 @@ import { ProductoModule } from '../producto/producto.module';
 
 import { StockActualModule } from '../stock-actual/stock-actual.module';
 import { MovimientoStockModule } from '../movimiento-stock/movimiento-stock.module';
-import { UsuarioModule } from 'src/usuario/usuario.module';
+import { UsuarioModule } from '../usuario/usuario.module';
 
 @Module({
   imports: [

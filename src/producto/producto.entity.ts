@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { Unidad } from '../unidad/unidad.entity';
 import { Categoria } from '../categoria/categoria.entity';
 import { Proveedor } from '../proveedor/proveedor.entity';
-import { OrdenCompraItem } from 'src/orden-compra/orden-compra-item.entity';
+import { OrdenCompraItem } from '../orden-compra/orden-compra-item.entity';
 
 @Entity('producto')
 export class Producto {

@@ -1,4 +1,4 @@
-import { OrdenCompra } from 'src/orden-compra/orden-compra.entity';
+import { OrdenCompra } from '../orden-compra/orden-compra.entity';
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity('proveedor')

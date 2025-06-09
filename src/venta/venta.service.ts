@@ -8,7 +8,7 @@ import { ProductoService } from '../producto/producto.service';
 
 import { StockActualService } from '../stock-actual/stock-actual.service';
 import { MovimientoStockService } from '../movimiento-stock/movimiento-stock.service';
-import { Usuario } from 'src/usuario/usuario.entity';
+import { Usuario } from '../usuario/usuario.entity';
 
 @Injectable()
 export class VentaService {
