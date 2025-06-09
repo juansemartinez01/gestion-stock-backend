@@ -11,3 +11,5 @@ import { Producto } from './producto.entity';
   exports: [ ProductoService ],
 })
 export class ProductoModule {}
+
+// Fuerza nuevo build para Railway
