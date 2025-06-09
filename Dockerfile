@@ -9,7 +9,6 @@ RUN npm install -g @nestjs/cli
 
 COPY . .
 
-# 💥 Borra dist viejo antes de compilar
 RUN rm -rf dist
 RUN nest build
 
@@ -18,8 +17,12 @@ FROM node:20 as production
 
 WORKDIR /app
 
+# Copia los archivos necesarios desde la etapa de build
 COPY --from=builder /app/dist ./dist
-COPY package*.json ./
+COPY --from=builder /app/package*.json ./
+
+# ⚠️ Instalación en producción solo de dependencias necesarias
 RUN npm install --omit=dev
 
+# ⚠️ Asegurate de que este archivo exista
 CMD ["node", "dist/main.js"]
