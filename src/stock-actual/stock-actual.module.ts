@@ -11,3 +11,5 @@ import { StockActual } from './stock-actual.entity';
   exports: [ StockActualService ],
 })
 export class StockActualModule {}
+
+// Forzar recompilación Railway
