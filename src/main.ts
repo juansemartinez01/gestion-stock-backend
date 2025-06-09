@@ -7,6 +7,8 @@ import { AppModule } from './app.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { Reflector }    from '@nestjs/core';
 import * as cookieParser from 'cookie-parser';
+import 'reflect-metadata';
+
 
 
 async function bootstrap() {
