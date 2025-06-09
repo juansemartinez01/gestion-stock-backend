@@ -27,7 +27,7 @@ import { OrdenCompraModule } from './orden-compra/orden-compra.module';
       host: process.env.DB_HOST,
       port: +(process.env.DB_PORT || 5432),
       username: process.env.DB_USER,
-      password: process.env.DB_PASS,
+      password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       autoLoadEntities: true,
       synchronize: true,      // en dev true, en prod false
