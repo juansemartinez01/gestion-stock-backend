@@ -25,6 +25,8 @@ WORKDIR /app
 # Copiamos solo lo necesario desde la etapa de build
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.env.production .env
+
 
 # Instalamos solo dependencias necesarias para producción
 RUN npm install --omit=dev
