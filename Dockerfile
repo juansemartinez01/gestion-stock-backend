@@ -5,16 +5,15 @@ WORKDIR /app
 
 # Copiamos los archivos necesarios para instalar dependencias
 COPY package*.json ./
-COPY .env.production .env.production
 
-# Instalamos todas las dependencias (dev incluidas)
+# Instalamos todas las dependencias (incluye dev)
 RUN npm install
 RUN npm install -g @nestjs/cli
 
 # Copiamos el resto del código fuente
 COPY . .
 
-# Compilamos usando el tsconfig.build.json correcto
+# Compilamos usando el tsconfig adecuado
 RUN rm -rf dist
 RUN npx tsc --project tsconfig.build.json
 
@@ -26,13 +25,11 @@ WORKDIR /app
 # Copiamos solo lo necesario desde la etapa de build
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/.env.production .env
-
 
 # Instalamos solo dependencias necesarias para producción
 RUN npm install --omit=dev
 
-# Puerto por defecto (opcional si usás Railway)
+# Puerto por defecto
 EXPOSE 3000
 
 # Comando para ejecutar la app NestJS
