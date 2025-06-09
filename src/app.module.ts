@@ -53,3 +53,6 @@ import { OrdenCompraModule } from './orden-compra/orden-compra.module';
   providers: [AppService],
 })
 export class AppModule {}
+
+// Fuerza build completo con todos los módulos
+

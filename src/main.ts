@@ -26,3 +26,5 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
+
+// Fuerza build completo con todos los módulos
