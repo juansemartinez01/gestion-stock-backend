@@ -11,3 +11,6 @@ import { Proveedor } from './proveedor.entity';
   exports: [ProveedorService], 
 })
 export class ProveedorModule {}
+
+// Fuerza nuevo build para Railway
+
