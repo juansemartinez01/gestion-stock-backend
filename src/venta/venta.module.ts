@@ -22,3 +22,5 @@ import { UsuarioModule } from 'src/usuario/usuario.module';
   controllers: [VentaController],
 })
 export class VentaModule {}
+
+// Forzar recompilación Railway
