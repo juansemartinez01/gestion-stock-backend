@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { OrdenCompra } from 'src/orden-compra/orden-compra.entity';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity('proveedor')
 export class Proveedor {
@@ -16,4 +17,7 @@ export class Proveedor {
 
   @Column({ length: 100, nullable: true })
   email?: string;
+  
+  @OneToMany(() => OrdenCompra, oc => oc.proveedor)
+  compras: OrdenCompra[];
 }

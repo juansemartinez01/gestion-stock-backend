@@ -8,6 +8,7 @@ import { ProductoService } from '../producto/producto.service';
 
 import { StockActualService } from '../stock-actual/stock-actual.service';
 import { MovimientoStockService } from '../movimiento-stock/movimiento-stock.service';
+import { Usuario } from 'src/usuario/usuario.entity';
 
 @Injectable()
 export class VentaService {
@@ -19,7 +20,8 @@ export class VentaService {
     private readonly movService: MovimientoStockService,
   ) {}
 
-  async create(dto: CreateVentaDto): Promise<Venta> {
+  
+  async create(dto: CreateVentaDto & { usuario: Usuario }) {
     const items: VentaItem[] = [];
     let total = 0;
 

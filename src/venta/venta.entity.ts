@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, JoinColumn } from 'typeorm';
 import { VentaItem } from './venta-item.entity';
+import { Usuario } from 'src/usuario/usuario.entity';
 
 @Entity('venta')
 export class Venta {
@@ -15,8 +16,9 @@ export class Venta {
   @Column({ type: 'varchar', length: 20, default: 'PENDIENTE' })
   estado: string;
 
-  @Column({ type: 'varchar', length: 255, default: 'Admin' })
-  usuario: String;
+  @ManyToOne(() => Usuario, usuario => usuario.ventas, { nullable: true })
+  @JoinColumn({ name: 'usuario_id' })
+  usuario: Usuario;
 
   @OneToMany(() => VentaItem, item => item.venta, { cascade: true, eager: true })
   items: VentaItem[];

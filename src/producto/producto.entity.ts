@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Unidad } from '../unidad/unidad.entity';
 import { Categoria } from '../categoria/categoria.entity';
 import { Proveedor } from '../proveedor/proveedor.entity';
+import { OrdenCompraItem } from 'src/orden-compra/orden-compra-item.entity';
 
 @Entity('producto')
 export class Producto {
@@ -49,4 +50,7 @@ export class Producto {
 
    @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
    precioBase: number;
+
+   @OneToMany(() => OrdenCompraItem, item => item.producto)
+    compras: OrdenCompraItem[];
 }

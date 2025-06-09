@@ -12,6 +12,13 @@ import { MovimientoStockModule } from './movimiento-stock/movimiento-stock.modul
 import { ParametroReordenModule } from './parametro-reorden/parametro-reorden.module';
 import { UnidadModule } from './unidad/unidad.module';
 import { VentaModule } from './venta/venta.module';
+import { AuthModule } from './auth/auth.module';
+import { UsuarioModule } from './usuario/usuario.module';
+import { RoleModule } from './role/role.module';
+import { UsuarioRolModule } from './usuario-rol/usuario-rol.module';
+import { Or } from 'typeorm';
+import { OrdenCompra } from './orden-compra/orden-compra.entity';
+import { OrdenCompraModule } from './orden-compra/orden-compra.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -36,6 +43,11 @@ import { VentaModule } from './venta/venta.module';
     ParametroReordenModule,
     UnidadModule,
     VentaModule,
+    AuthModule,
+    UsuarioModule,
+    RoleModule,
+    UsuarioRolModule,
+    OrdenCompraModule,
   ],
   controllers: [AppController],
   providers: [AppService],

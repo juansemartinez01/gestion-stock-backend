@@ -85,4 +85,27 @@ export class StockActualService {
     // 3) Guarda y devuelve el registro actualizado
     return this.repo.save(stock);
   }
+
+  async getStockByAlmacen(almacenId: number) {
+  const stockPorAlmacen = await this.repo.find({
+    where: { almacen: { id: almacenId } },
+    relations: ['producto', 'almacen'],
+  });
+
+  const stockTotalPorProducto = await this.repo
+    .createQueryBuilder('stock')
+    .select('stock.producto_id', 'productoId')
+    .addSelect('SUM(stock.cantidad)', 'cantidadTotal')
+    .groupBy('stock.producto_id')
+    .getRawMany();
+
+  return {
+    almacenId,
+    productosEnAlmacen: stockPorAlmacen,
+    stockTotalPorProducto: stockTotalPorProducto.map((item) => ({
+      productoId: +item.productoId,
+      cantidadTotal: +item.cantidadTotal,
+    })),
+  };
+}
 }

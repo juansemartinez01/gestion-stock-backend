@@ -8,6 +8,7 @@ import { ProductoModule } from '../producto/producto.module';
 
 import { StockActualModule } from '../stock-actual/stock-actual.module';
 import { MovimientoStockModule } from '../movimiento-stock/movimiento-stock.module';
+import { UsuarioModule } from 'src/usuario/usuario.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MovimientoStockModule } from '../movimiento-stock/movimiento-stock.modu
     ProductoModule,
     StockActualModule,        // <— para manipular stock_actual
     MovimientoStockModule,
+    UsuarioModule,
   ],
   providers: [VentaService],
   controllers: [VentaController],

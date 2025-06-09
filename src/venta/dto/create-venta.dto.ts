@@ -3,8 +3,8 @@ import { Type } from 'class-transformer';
 import { CreateVentaItemDto } from './create-venta-item.dto';
 
 export class CreateVentaDto {
-  @IsString()
-  usuario: string;
+  @IsInt()
+  usuarioId: number;
 
   @IsInt()
   almacenId: number;

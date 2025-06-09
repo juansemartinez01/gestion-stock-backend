@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Producto } from './producto.entity';
@@ -16,6 +16,42 @@ export class ProductoService {
     return this.repo.find({ relations: ['unidad', 'categoria', 'proveedor'] });
   }
 
+  /** Genera un SKU compuesto por un prefijo derivado del nombre
+   *  y una cadena aleatoria de 6 caracteres. */
+  private generateSku(nombre: string): string {
+    // 1) Prefijo: primeras 3 letras (o hasta 5) en mayúsculas, sin espacios
+    const prefix = nombre
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')  // elimina caracteres no alfanuméricos
+      .substring(0, 5);
+
+    // 2) Sufijo: 6 caracteres alfanuméricos aleatorios
+    const random = Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase();
+
+    return `${prefix}-${random}`;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  async create(dto: CreateProductoDto): Promise<Producto> {
+    // Si el usuario no envió SKU, lo generamos automáticamente
+    if (!dto.sku) {
+      dto.sku = this.generateSku(dto.nombre);
+    }
+
+    // Verificar duplicados por SKU
+    const existing = await this.repo.findOne({ where: { sku: dto.sku } });
+    if (existing) {
+      throw new ConflictException(`El producto con SKU "${dto.sku}" ya existe.`);
+    }
+
+    const prod = this.repo.create(dto);
+    return this.repo.save(prod);
+  }
+
   async findOne(id: number): Promise<Producto> {
     const prod = await this.repo.findOne({
       where: { id },
@@ -25,10 +61,7 @@ export class ProductoService {
     return prod;
   }
 
-  create(dto: CreateProductoDto): Promise<Producto> {
-    const prod = this.repo.create(dto);
-    return this.repo.save(prod);
-  }
+  
 
   async update(id: number, dto: UpdateProductoDto): Promise<Producto> {
     await this.repo.update(id, dto);

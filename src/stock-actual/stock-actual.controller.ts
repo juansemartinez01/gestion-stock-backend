@@ -21,6 +21,12 @@ export class StockActualController {
     return this.service.findAll();
   }
 
+  @Get('almacen/:almacenId')
+  async getStockByAlmacen(@Param('almacenId') almacenId: string) {
+  return this.service.getStockByAlmacen(+almacenId);
+}
+
+
   @Get(':productoId/:almacenId')
   getOne(
     @Param('productoId') productoId: string,
