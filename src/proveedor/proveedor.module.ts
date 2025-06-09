@@ -12,5 +12,5 @@ import { Proveedor } from './proveedor.entity';
 })
 export class ProveedorModule {}
 
-// Fuerza nuevo build para Railway
+// Forzar recompilación Railway
 
