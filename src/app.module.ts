@@ -19,18 +19,20 @@ import { UsuarioRolModule } from './usuario-rol/usuario-rol.module';
 import { Or } from 'typeorm';
 import { OrdenCompra } from './orden-compra/orden-compra.entity';
 import { OrdenCompraModule } from './orden-compra/orden-compra.module';
+import { Promocion } from './promocion/promocion.entity';
+import { PromocionModule } from './promocion/promocion.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
   type: 'postgres',
-  host: process.env.PGHOST,
-  port: +(process.env.PGPORT || 5432),
-  username: process.env.POSTGRES_USER,
-  password: process.env.PGPASSWORD,
-  database: process.env.POSTGRES_DB,
+  host: process.env.DB_HOST,
+  port: +(process.env.DB_PORT || 5432),
+  username: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   autoLoadEntities: true,
-  synchronize: false,
+  synchronize: true,
 }),
     CategoriaModule,
     ProveedorModule,
@@ -46,6 +48,7 @@ import { OrdenCompraModule } from './orden-compra/orden-compra.module';
     RoleModule,
     UsuarioRolModule,
     OrdenCompraModule,
+    PromocionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

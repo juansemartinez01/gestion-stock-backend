@@ -18,6 +18,6 @@ export default new DataSource({
   // Con __dirname apunta siempre a /.../src cuando corres con ts-node
   entities:   [__dirname + '/**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
-  synchronize: false,
+  synchronize: true,
   logging:     false,
 });
