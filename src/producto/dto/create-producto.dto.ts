@@ -22,9 +22,7 @@ export class CreateProductoDto {
   @IsOptional()
   categoria_id?: number;
 
-  @IsInt()
-  @IsOptional()
-  proveedor_id?: number;
+  
 
   @IsNumber({ maxDecimalPlaces: 2 })
   precioBase: number; 

@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Producto } from '../producto/producto.entity';
 import { Almacen } from '../almacen/almacen.entity';
+import { Proveedor } from 'src/proveedor/proveedor.entity';
 
 @Entity('movimiento_stock')
 export class MovimientoStock {
@@ -49,4 +50,17 @@ export class MovimientoStock {
 
   @Column({ type: 'text', nullable: true })
   motivo?: string;
+
+  @Column({ name: 'proveedor_id', nullable: true })
+    proveedor_id?: number;
+  
+  @ManyToOne(() => Proveedor)
+  @JoinColumn({ name: 'proveedor_id' })
+  proveedor?: Proveedor;
+
+  @Column({ name: 'precio_unitario', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  precioUnitario?: number;
+
+  @Column({ name: 'precio_total', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  precioTotal?: number;
 }

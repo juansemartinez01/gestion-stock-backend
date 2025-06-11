@@ -28,6 +28,9 @@ export class StockActualService {
     cantidad: dto.cantidad,
     tipo: 'entrada',
     motivo: dto.motivo || 'Reposición de stock',
+    proveedor_id: dto.proveedor_id,
+    precioUnitario: dto.precioUnitario,
+    precioTotal: dto.precioTotal,
   });
 
   return updated;

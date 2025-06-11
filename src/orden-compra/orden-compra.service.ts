@@ -1,5 +1,5 @@
 // src/orden-compra/orden-compra.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OrdenCompra } from './orden-compra.entity';
@@ -7,6 +7,8 @@ import { OrdenCompraItem } from './orden-compra-item.entity';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
 import { ProveedorService } from '../proveedor/proveedor.service';
 import { ProductoService } from '../producto/producto.service';
+
+
 
 @Injectable()
 export class OrdenCompraService {
@@ -19,6 +21,7 @@ export class OrdenCompraService {
 
     private proveedorService: ProveedorService,
     private productoService: ProductoService,
+    
   ) {}
 
   async create(dto: CreateOrdenCompraDto): Promise<OrdenCompra> {
@@ -63,4 +66,7 @@ export class OrdenCompraService {
     }
     return orden;
   }
+
+  
+
 }

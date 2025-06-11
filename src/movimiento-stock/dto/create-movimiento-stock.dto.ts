@@ -1,4 +1,4 @@
-import { IsInt, Min, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsInt, Min, IsIn, IsOptional, IsString, MaxLength, IsNumber } from 'class-validator';
 
 export class CreateMovimientoStockDto {
   @IsInt()
@@ -27,4 +27,16 @@ export class CreateMovimientoStockDto {
   @IsOptional()
   @MaxLength(500)
   motivo?: string;
+
+  @IsInt()
+  @IsOptional()
+  proveedor_id?: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsOptional()
+  precioUnitario?: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsOptional()
+  precioTotal?: number;
 }

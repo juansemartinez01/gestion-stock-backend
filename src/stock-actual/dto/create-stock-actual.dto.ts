@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateStockActualDto {
   @IsInt()
@@ -14,4 +14,16 @@ export class CreateStockActualDto {
   @IsOptional()
   @IsString()
   motivo?: string;
+
+  @IsInt()
+  @IsOptional()
+  proveedor_id?: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsOptional()
+  precioUnitario?: number;
+  
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsOptional()
+  precioTotal?: number;
 }
