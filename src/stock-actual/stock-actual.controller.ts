@@ -35,6 +35,11 @@ export class StockActualController {
     return this.service.findOne(+productoId, +almacenId);
   }
 
+  @Post('entrada')
+    registrarEntrada(@Body() dto: CreateStockActualDto): Promise<StockActual> {
+  return this.service.registrarEntrada(dto);
+  }
+
   @Post()
   create(@Body() dto: CreateStockActualDto): Promise<StockActual> {
     return this.service.create(dto);

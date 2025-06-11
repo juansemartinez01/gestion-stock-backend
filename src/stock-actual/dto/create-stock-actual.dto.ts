@@ -1,4 +1,4 @@
-import { IsInt, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateStockActualDto {
   @IsInt()
@@ -10,4 +10,8 @@ export class CreateStockActualDto {
   @IsInt()
   @Min(0)
   cantidad: number;
+
+  @IsOptional()
+  @IsString()
+  motivo?: string;
 }

@@ -58,4 +58,18 @@ async findByCodigo(codigo: string): Promise<Promocion> {
 
   return promocion;
 }
+
+async getPromocionById(id: number): Promise<Promocion> {
+  const promocion = await this.promoRepo.findOne({
+    where: { id },
+    relations: ['productos', 'productos.producto'],
+  });
+
+  if (!promocion) {
+    throw new NotFoundException(`No se encontró ninguna promoción con el id "${id}"`);
+  }
+
+  return promocion;
+}
+
 }

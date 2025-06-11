@@ -9,5 +9,6 @@ import { PromocionController } from './promocion.controller';
   imports: [TypeOrmModule.forFeature([Promocion, PromocionProducto])],
   providers: [PromocionService],
   controllers: [PromocionController],
+  exports: [PromocionService],
 })
 export class PromocionModule {}

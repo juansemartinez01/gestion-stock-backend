@@ -1,6 +1,7 @@
-import { IsInt, IsArray, ValidateNested, IsNumber, IsString } from 'class-validator';
+import { IsInt, IsArray, ValidateNested, IsNumber, IsString, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateVentaItemDto } from './create-venta-item.dto';
+import { CreateVentaPromoDto } from './create-venta-promo.dto';
 
 export class CreateVentaDto {
   @IsInt()
@@ -13,4 +14,10 @@ export class CreateVentaDto {
   @ValidateNested({ each: true })
   @Type(() => CreateVentaItemDto)
   items: CreateVentaItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateVentaPromoDto)
+  promociones?: CreateVentaPromoDto[];
 }

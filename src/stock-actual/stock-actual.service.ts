@@ -4,17 +4,35 @@ import { Repository } from 'typeorm';
 import { StockActual } from './stock-actual.entity';
 import { CreateStockActualDto } from './dto/create-stock-actual.dto';
 import { UpdateStockActualDto } from './dto/update-stock-actual.dto';
+import { MovimientoStockService } from 'src/movimiento-stock/movimiento-stock.service';
 
 @Injectable()
 export class StockActualService {
   constructor(
     @InjectRepository(StockActual)
     private readonly repo: Repository<StockActual>,
+    private readonly movService: MovimientoStockService,
   ) {}
 
   findAll(): Promise<StockActual[]> {
     return this.repo.find({ relations: ['producto', 'almacen'] });
   }
+
+  async registrarEntrada(dto: CreateStockActualDto): Promise<StockActual> {
+  const updated = await this.changeStock(dto.producto_id, dto.almacen_id, dto.cantidad);
+
+  await this.movService.create({
+    producto_id: dto.producto_id,
+    origen_almacen: undefined,
+    destino_almacen: dto.almacen_id,
+    cantidad: dto.cantidad,
+    tipo: 'entrada',
+    motivo: dto.motivo || 'Reposición de stock',
+  });
+
+  return updated;
+}
+
 
   async findOne(
     producto_id: number,
