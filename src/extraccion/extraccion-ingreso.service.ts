@@ -1,11 +1,12 @@
 // extraccion-ingreso.service.ts
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExtraccionIngreso } from './extraccion-ingreso.entity';
 import { CreateExtraccionDto } from './dto/create-extraccion.dto';
 import { IngresoVenta } from 'src/ingreso/ingreso-venta.entity';
 import { FiltroExtraccionDto } from './dto/filtro-extraccion.dto';
+import { UpdateExtraccionDto } from './dto/update-extraccion.dto';
 
 @Injectable()
 export class ExtraccionIngresoService {
@@ -104,5 +105,53 @@ async obtenerConFiltros(filtro: FiltroExtraccionDto) {
   });
 
   return resultado;
+}
+
+async borrarExtraccion(id: number) {
+  const ext = await this.repo.findOne({ where: { id } });
+  if (!ext) {
+    throw new NotFoundException(`Extracción ${id} no encontrada`);
+  }
+  return this.repo.remove(ext);
+}
+
+async editarExtraccion(id: number, dto: UpdateExtraccionDto) {
+  const ext = await this.repo.findOne({ where: { id } });
+  if (!ext) {
+    throw new NotFoundException(`Extracción ${id} no encontrada`);
+  }
+
+  // Calcular saldo disponible si cambia monto o tipo
+  if (dto.origen || dto.monto) {
+    const nuevoOrigen = dto.origen || ext.origen;
+    const nuevoMonto = dto.monto ?? ext.monto;
+
+    const ingresos = await this.ingresoRepo
+      .createQueryBuilder('ing')
+      .select('SUM(ing.monto)', 'suma')
+      .where('ing.tipo = :tipo', { tipo: nuevoOrigen })
+      .getRawOne();
+
+    const totalIngresos = parseFloat(ingresos.suma || 0);
+
+    const otrasExtracciones = await this.repo
+      .createQueryBuilder('ext')
+      .select('SUM(ext.monto)', 'suma')
+      .where('ext.origen = :tipo', { tipo: nuevoOrigen })
+      .andWhere('ext.id != :id', { id }) // ignorar la que estoy editando
+      .getRawOne();
+
+    const totalOtras = parseFloat(otrasExtracciones.suma || 0);
+    const disponible = totalIngresos - totalOtras;
+
+    if (nuevoMonto > disponible) {
+      throw new BadRequestException(
+        `Fondos insuficientes en ${nuevoOrigen}. Disponible: $${disponible.toFixed(2)}`
+      );
+    }
+  }
+
+  Object.assign(ext, dto);
+  return this.repo.save(ext);
 }
 }
