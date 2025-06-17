@@ -11,9 +11,10 @@ import { CreateOrdenCompraItemDto } from './create-orden-compra-item.dto';
 export class CreateOrdenCompraDto {
   @IsInt()
   proveedorId: number;
-
-  @IsDateString()
-  fecha: string;
+  @IsInt()
+  almacenId: number;
+  @IsInt()
+  usuarioId: number;
 
   @ValidateNested({ each: true })
   @Type(() => CreateOrdenCompraItemDto)

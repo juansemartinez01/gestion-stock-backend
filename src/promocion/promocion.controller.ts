@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Get, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Delete, Put } from '@nestjs/common';
 import { PromocionService } from './promocion.service';
 import { CreatePromocionDto } from './dto/create-promocion.dto';
+import { UpdatePromocionDto } from './dto/update-promocion.dto';
 
 @Controller('promociones')
 export class PromocionController {
@@ -30,4 +31,12 @@ export class PromocionController {
   remove(@Param('id') id: string) {
     return this.service.remove(+id);
   }
+
+
+
+  @Put(':id')
+  update(@Param('id') id: string, @Body() dto: UpdatePromocionDto) {
+    return this.service.update(+id, dto);
+  }
+
 }

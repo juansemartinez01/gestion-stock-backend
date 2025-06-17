@@ -15,10 +15,12 @@ import { OrdenCompra } from './orden-compra.entity';
 export class OrdenCompraController {
   constructor(private readonly service: OrdenCompraService) {}
 
-  @Post()
-  create(@Body() dto: CreateOrdenCompraDto): Promise<OrdenCompra> {
-    return this.service.create(dto);
+  @Post('ingresar-stock')
+  async ingresarStock(@Body() dto: CreateOrdenCompraDto) {
+    return this.service.crearOrdenConStock(dto);
   }
+
+  
 
   @Get()
   findAll(): Promise<OrdenCompra[]> {
@@ -26,7 +28,8 @@ export class OrdenCompraController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<OrdenCompra> {
-    return this.service.findOne(id);
+  async obtener(@Param('id') id: string) {
+    return this.service.obtenerDetalle(+id);
   }
+
 }

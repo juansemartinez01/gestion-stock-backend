@@ -32,12 +32,7 @@ export class Producto {
   @JoinColumn({ name: 'categoria_id' })
   categoria?: Categoria;
 
-  @Column({ name: 'proveedor_id', nullable: true })
-  proveedor_id?: number;
-
-  @ManyToOne(() => Proveedor)
-  @JoinColumn({ name: 'proveedor_id' })
-  proveedor?: Proveedor;
+  
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

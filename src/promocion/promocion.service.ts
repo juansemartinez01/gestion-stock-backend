@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Promocion } from './promocion.entity';
 import { CreatePromocionDto } from './dto/create-promocion.dto';
 import { PromocionProducto } from './promocion-producto.entity';
+import { UpdatePromocionDto } from './dto/update-promocion.dto';
 
 @Injectable()
 export class PromocionService {
@@ -71,5 +72,37 @@ async getPromocionById(id: number): Promise<Promocion> {
 
   return promocion;
 }
+
+async update(id: number, dto: UpdatePromocionDto): Promise<Promocion>
+ {
+  const promocion = await this.promoRepo.findOne({
+    where: { id },
+    relations: ['productos'],
+  });
+
+  if (!promocion) {
+    throw new NotFoundException(`Promoción con id ${id} no encontrada`);
+  }
+
+  // Actualizar datos principales
+  promocion.codigo = dto.codigo ?? promocion.codigo;
+  if (dto.precioPromo !== undefined) {
+    promocion.precioPromo = dto.precioPromo;
+  }
+
+  // Eliminar productos anteriores
+  await this.promoProdRepo.delete({ promocion: { id } });
+
+  // Cargar nuevos productos
+  promocion.productos = (dto.productos ?? []).map(p => {
+    const pp = new PromocionProducto();
+    pp.producto = { id: p.productoId } as any;
+    pp.cantidad = p.cantidad;
+    return pp;
+  });
+
+  return this.promoRepo.save(promocion);
+}
+
 
 }
