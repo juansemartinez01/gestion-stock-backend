@@ -13,7 +13,7 @@ export class ProductoService {
   ) {}
 
   findAll(): Promise<Producto[]> {
-    return this.repo.find({ relations: ['unidad', 'categoria', 'proveedor'] });
+    return this.repo.find({ relations: ['unidad', 'categoria'] });
   }
 
   /** Genera un SKU compuesto por un prefijo derivado del nombre
@@ -55,7 +55,7 @@ export class ProductoService {
   async findOne(id: number): Promise<Producto> {
     const prod = await this.repo.findOne({
       where: { id },
-      relations: ['unidad', 'categoria', 'proveedor'],
+      relations: ['unidad', 'categoria'],
     });
     if (!prod) throw new NotFoundException(`Producto ${id} no encontrado`);
     return prod;
