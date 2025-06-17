@@ -21,6 +21,8 @@ import { OrdenCompra } from './orden-compra/orden-compra.entity';
 import { OrdenCompraModule } from './orden-compra/orden-compra.module';
 import { Promocion } from './promocion/promocion.entity';
 import { PromocionModule } from './promocion/promocion.module';
+import { IngresoVentaModule } from './ingreso/ingreso-venta.module';
+import { ExtraccionIngresoModule } from './extraccion/extraccion-ingreso.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -49,6 +51,8 @@ import { PromocionModule } from './promocion/promocion.module';
     UsuarioRolModule,
     OrdenCompraModule,
     PromocionModule,
+    IngresoVentaModule,
+    ExtraccionIngresoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -10,6 +10,7 @@ import { StockActualModule } from '../stock-actual/stock-actual.module';
 import { MovimientoStockModule } from '../movimiento-stock/movimiento-stock.module';
 import { UsuarioModule } from '../usuario/usuario.module';
 import { PromocionModule } from 'src/promocion/promocion.module';
+import { IngresoVentaModule } from 'src/ingreso/ingreso-venta.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PromocionModule } from 'src/promocion/promocion.module';
     MovimientoStockModule,
     UsuarioModule,
     PromocionModule,
+    IngresoVentaModule,
   ],
   providers: [VentaService],
   controllers: [VentaController],

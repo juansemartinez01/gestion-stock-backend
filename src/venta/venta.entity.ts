@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, JoinColumn } from 'typeorm';
 import { VentaItem } from './venta-item.entity';
 import { Usuario } from '../usuario/usuario.entity';
+import { IngresoVenta } from 'src/ingreso/ingreso-venta.entity';
 
 @Entity('venta')
 export class Venta {
@@ -22,4 +23,8 @@ export class Venta {
 
   @OneToMany(() => VentaItem, item => item.venta, { cascade: true, eager: true })
   items: VentaItem[];
+
+  @OneToMany(() => IngresoVenta, ingreso => ingreso.venta)
+  ingresos: IngresoVenta[];
+
 }

@@ -6,6 +6,7 @@ import {
   Param,
   Body,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { OrdenCompraService } from './orden-compra.service';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
@@ -22,10 +23,17 @@ export class OrdenCompraController {
 
   
 
+  
+
   @Get()
-  findAll(): Promise<OrdenCompra[]> {
-    return this.service.findAll();
+  async obtenerTodas(
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
+    @Query('proveedorId') proveedorId?: string,
+  ) {
+    return this.service.obtenerTodasConFiltros({ fechaDesde, fechaHasta, proveedorId });
   }
+
 
   @Get(':id')
   async obtener(@Param('id') id: string) {
