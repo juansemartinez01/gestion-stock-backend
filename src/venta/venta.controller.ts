@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { VentaService } from './venta.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { Venta } from './venta.entity';
@@ -17,9 +17,15 @@ export class VentaController {
   }
 
   @Get()
-  findAll(): Promise<Venta[]> {
-    return this.service.findAll();
+  async obtenerVentas(
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
+    @Query('usuarioId') usuarioId?: string,
+    @Query('estado') estado?: string,
+  ) {
+    return this.service.obtenerTodasConFiltros({ fechaDesde, fechaHasta, usuarioId, estado });
   }
+
 
   @Get(':id')
   findOne(@Param('id') id: string): Promise<Venta> {

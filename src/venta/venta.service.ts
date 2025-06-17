@@ -102,4 +102,35 @@ export class VentaService {
     }
     return venta;
   }
+
+  async obtenerTodasConFiltros(filtros: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    usuarioId?: string;
+    estado?: string;
+  }) {
+    const query = this.repo.createQueryBuilder('venta')
+      .leftJoinAndSelect('venta.usuario', 'usuario')
+      .leftJoinAndSelect('venta.items', 'items')
+      .leftJoinAndSelect('items.producto', 'producto');
+
+    if (filtros.fechaDesde) {
+      query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: filtros.fechaDesde });
+    }
+
+    if (filtros.fechaHasta) {
+      query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: filtros.fechaHasta });
+    }
+
+    if (filtros.usuarioId) {
+      query.andWhere('usuario.id = :usuarioId', { usuarioId: filtros.usuarioId });
+    }
+
+    if (filtros.estado) {
+      query.andWhere('venta.estado = :estado', { estado: filtros.estado });
+    }
+
+    return await query.orderBy('venta.fecha', 'DESC').getMany();
+  }
+
 }
