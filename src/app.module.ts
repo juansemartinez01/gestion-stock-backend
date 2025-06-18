@@ -23,6 +23,7 @@ import { Promocion } from './promocion/promocion.entity';
 import { PromocionModule } from './promocion/promocion.module';
 import { IngresoVentaModule } from './ingreso/ingreso-venta.module';
 import { ExtraccionIngresoModule } from './extraccion/extraccion-ingreso.module';
+import { FacturaModule } from './factura/factura.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -53,6 +54,7 @@ import { ExtraccionIngresoModule } from './extraccion/extraccion-ingreso.module'
     PromocionModule,
     IngresoVentaModule,
     ExtraccionIngresoModule,
+    FacturaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

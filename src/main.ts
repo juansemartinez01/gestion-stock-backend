@@ -16,7 +16,7 @@ async function bootstrap() {
 
   
   app.enableCors({
-    origin: ['http://localhost:3001','http://localhost:3000'], // o true para permitir todos los orígenes (no recomendado en producción)
+    origin: ['http://localhost:3001','http://localhost:3000','http://frontend-jagger-production.up.railway.app'], // o true para permitir todos los orígenes (no recomendado en producción)
     credentials: true, // si usas cookies o autenticación con tokens en headers
   });
   const reflector = app.get(Reflector);
