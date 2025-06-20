@@ -13,9 +13,36 @@ export class IngresoVentaController {
   }
 
   @Get()
-  async listar(@Query() filtros: FiltroIngresoVentaDto) {
-    return this.service.obtenerTodosConFiltros(filtros);
-  }
+async obtenerIngresosConFiltros(
+  @Query('tipo') tipo?: string,
+  @Query('ventaId') ventaId?: string,
+  @Query('montoMin') montoMin?: string,
+  @Query('montoMax') montoMax?: string,
+  @Query('fechaDesde') fechaDesde?: string,
+  @Query('fechaHasta') fechaHasta?: string,
+  @Query('page') page: string = '1',
+  @Query('limit') limit: string = '50',
+  @Query('ordenCampo') ordenCampo: string = 'fecha',
+  @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
+) {
+  // Only allow "EFECTIVO" or "BANCARIZADO" as tipo
+  const tipoFiltrado: "EFECTIVO" | "BANCARIZADO" | undefined =
+    tipo === "EFECTIVO" || tipo === "BANCARIZADO" ? tipo : undefined;
+
+  return this.service.obtenerTodosConFiltros({
+    tipo: tipoFiltrado,
+    ventaId: ventaId ? +ventaId : undefined,
+    montoMin: montoMin ? +montoMin : undefined,
+    montoMax: montoMax ? +montoMax : undefined,
+    fechaDesde,
+    fechaHasta,
+    page: +page,
+    limit: +limit,
+    ordenCampo,
+    ordenDireccion,
+  });
+}
+
 
   @Get('resumen')
   async resumen() {

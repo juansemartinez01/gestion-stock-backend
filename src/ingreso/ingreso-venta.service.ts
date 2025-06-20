@@ -31,37 +31,74 @@ export class IngresoVentaService {
     return await this.repo.save(ingreso);
   }
 
-  async obtenerTodosConFiltros(filtros: FiltroIngresoVentaDto) {
-  const query = this.repo.createQueryBuilder('ingreso')
-    .leftJoinAndSelect('ingreso.venta', 'venta')
-    .orderBy('ingreso.fecha', 'DESC');
+    async obtenerTodosConFiltros(filtros: FiltroIngresoVentaDto & {
+    page?: number;
+    limit?: number;
+    ordenCampo?: string;
+    ordenDireccion?: 'ASC' | 'DESC';
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      tipo,
+      ventaId,
+      montoMin,
+      montoMax,
+      fechaDesde,
+      fechaHasta,
+      page = 1,
+      limit = 50,
+      ordenCampo = 'fecha',
+      ordenDireccion = 'DESC',
+    } = filtros;
 
-  if (filtros.tipo) {
-    query.andWhere('ingreso.tipo = :tipo', { tipo: filtros.tipo });
+    const query = this.repo.createQueryBuilder('ingreso')
+      .leftJoinAndSelect('ingreso.venta', 'venta')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (tipo) {
+      query.andWhere('ingreso.tipo = :tipo', { tipo });
+    }
+
+    if (ventaId) {
+      query.andWhere('venta.id = :ventaId', { ventaId });
+    }
+
+    if (montoMin !== undefined) {
+      query.andWhere('ingreso.monto >= :montoMin', { montoMin });
+    }
+
+    if (montoMax !== undefined) {
+      query.andWhere('ingreso.monto <= :montoMax', { montoMax });
+    }
+
+    if (fechaDesde) {
+      query.andWhere('ingreso.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
+    }
+
+    if (fechaHasta) {
+      query.andWhere('ingreso.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
+    }
+
+    const camposValidos = ['fecha', 'id', 'monto', 'tipo'];
+    const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
+
+    query.orderBy(`ingreso.${campoOrdenFinal}`, ordenDireccion);
+
+    const [data, total] = await query.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
-  if (filtros.ventaId) {
-    query.andWhere('venta.id = :ventaId', { ventaId: filtros.ventaId });
-  }
-
-  if (filtros.montoMin !== undefined) {
-    query.andWhere('ingreso.monto >= :montoMin', { montoMin: filtros.montoMin });
-  }
-
-  if (filtros.montoMax !== undefined) {
-    query.andWhere('ingreso.monto <= :montoMax', { montoMax: filtros.montoMax });
-  }
-
-  if (filtros.fechaDesde) {
-    query.andWhere('ingreso.fecha >= :fechaDesde', { fechaDesde: filtros.fechaDesde });
-  }
-
-  if (filtros.fechaHasta) {
-    query.andWhere('ingreso.fecha <= :fechaHasta', { fechaHasta: filtros.fechaHasta });
-  }
-
-  return query.getMany();
-}
 
   async obtenerResumen() {
     const [efectivo, bancarizado] = await Promise.all([
