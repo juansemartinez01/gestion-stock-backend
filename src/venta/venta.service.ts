@@ -113,34 +113,99 @@ export class VentaService {
     return venta;
   }
 
-  async obtenerTodasConFiltros(filtros: {
+  async obtenerTodasConFiltros(
+  filtros: {
     fechaDesde?: string;
     fechaHasta?: string;
     usuarioId?: string;
     estado?: string;
-  }) {
-    const query = this.repo.createQueryBuilder('venta')
-      .leftJoinAndSelect('venta.usuario', 'usuario')
-      .leftJoinAndSelect('venta.items', 'items')
-      .leftJoinAndSelect('items.producto', 'producto');
-
-    if (filtros.fechaDesde) {
-      query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: filtros.fechaDesde });
-    }
-
-    if (filtros.fechaHasta) {
-      query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: filtros.fechaHasta });
-    }
-
-    if (filtros.usuarioId) {
-      query.andWhere('usuario.id = :usuarioId', { usuarioId: filtros.usuarioId });
-    }
-
-    if (filtros.estado) {
-      query.andWhere('venta.estado = :estado', { estado: filtros.estado });
-    }
-
-    return await query.orderBy('venta.fecha', 'DESC').getMany();
+    page?: number;
+    limit?: number;
+    ordenCampo?: string;
+    ordenDireccion?: 'ASC' | 'DESC';
   }
+): Promise<{
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+}> {
+  const {
+    fechaDesde,
+    fechaHasta,
+    usuarioId,
+    estado,
+    page = 1,
+    limit = 50,
+    ordenCampo = 'fecha',
+    ordenDireccion = 'DESC',
+  } = filtros;
+
+  const query = this.repo.createQueryBuilder('venta')
+    .leftJoin('venta.usuario', 'usuario')
+    .leftJoin('venta.items', 'items')
+    .leftJoin('items.producto', 'producto')
+    .leftJoin('producto.unidad', 'unidad')
+    .leftJoin('producto.categoria', 'categoria')
+    .select([
+      'venta.id',
+      'venta.fecha',
+      'venta.total',
+      'venta.estado',
+
+      'usuario.id',
+      'usuario.nombre',
+
+      'items.id',
+      'items.cantidad',
+      'items.precioUnitario',
+      'items.subtotal',
+
+      'producto.id',
+      'producto.nombre',
+      'producto.descripcion',
+      'producto.barcode',
+      'producto.precioBase',
+
+      'unidad.nombre',
+      'categoria.nombre',
+    ])
+    .skip((page - 1) * limit)
+    .take(limit);
+
+  if (fechaDesde) {
+    query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
+  }
+
+  if (fechaHasta) {
+    query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
+  }
+
+  if (usuarioId) {
+    query.andWhere('usuario.id = :usuarioId', { usuarioId });
+  }
+
+  if (estado) {
+    const estados = estado.split(',').map(e => e.trim()).filter(Boolean);
+    if (estados.length > 0) {
+      query.andWhere('venta.estado IN (:...estados)', { estados });
+    }
+  }
+
+  const camposValidos = ['fecha', 'id', 'estado'];
+  const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
+
+  query.orderBy(`venta.${campoOrdenFinal}`, ordenDireccion);
+
+  const [ventas, total] = await query.getManyAndCount();
+
+  return {
+    data: ventas,
+    total,
+    page,
+    limit,
+  };
+}
+
 
 }

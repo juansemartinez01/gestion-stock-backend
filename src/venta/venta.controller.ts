@@ -16,15 +16,29 @@ export class VentaController {
     return this.service.create({ ...dto, usuario });
   }
 
-  @Get()
+    @Get()
   async obtenerVentas(
     @Query('fechaDesde') fechaDesde?: string,
     @Query('fechaHasta') fechaHasta?: string,
     @Query('usuarioId') usuarioId?: string,
     @Query('estado') estado?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+    @Query('ordenCampo') ordenCampo: string = 'fecha',
+    @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
   ) {
-    return this.service.obtenerTodasConFiltros({ fechaDesde, fechaHasta, usuarioId, estado });
+    return this.service.obtenerTodasConFiltros({
+      fechaDesde,
+      fechaHasta,
+      usuarioId,
+      estado,
+      page: +page,
+      limit: +limit,
+      ordenCampo,
+      ordenDireccion,
+    });
   }
+
 
 
   @Get(':id')
