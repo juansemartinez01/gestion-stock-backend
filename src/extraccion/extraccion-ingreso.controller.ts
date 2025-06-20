@@ -16,9 +16,27 @@ export class ExtraccionIngresoController {
 
   
     @Get()
-      async listar(@Query() filtro: FiltroExtraccionDto) {
-        return this.service.obtenerConFiltros(filtro);
+    async getExtraccionesConFiltros(
+      @Query('origen') origen?: string,
+      @Query('fechaDesde') fechaDesde?: string,
+      @Query('fechaHasta') fechaHasta?: string,
+      @Query('page') page: string = '1',
+      @Query('limit') limit: string = '50',
+      @Query('ordenCampo') ordenCampo: string = 'fecha',
+      @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
+    ) {
+      const allowedOrigen = origen === 'EFECTIVO' || origen === 'BANCARIZADO' ? origen : undefined;
+      return this.service.obtenerConFiltros({
+        origen: allowedOrigen,
+        fechaDesde,
+        fechaHasta,
+        page: +page,
+        limit: +limit,
+        ordenCampo,
+        ordenDireccion,
+      });
     }
+
 
 
     @Get('/disponible')

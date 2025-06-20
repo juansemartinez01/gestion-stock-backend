@@ -43,25 +43,59 @@ export class ExtraccionIngresoService {
     return this.repo.save(extraccion);
   }
 
-  // extraccion-ingreso.service.ts
-async obtenerConFiltros(filtro: FiltroExtraccionDto) {
-  const query = this.repo.createQueryBuilder('ext')
-    .orderBy('ext.fecha', 'DESC');
+  
+  async obtenerConFiltros(filtro: FiltroExtraccionDto & {
+    page?: number;
+    limit?: number;
+    ordenCampo?: string;
+    ordenDireccion?: 'ASC' | 'DESC';
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      origen,
+      fechaDesde,
+      fechaHasta,
+      page = 1,
+      limit = 50,
+      ordenCampo = 'fecha',
+      ordenDireccion = 'DESC',
+    } = filtro;
 
-  if (filtro.origen) {
-    query.andWhere('ext.origen = :origen', { origen: filtro.origen });
+    const query = this.repo.createQueryBuilder('ext')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (origen) {
+      query.andWhere('ext.origen = :origen', { origen });
+    }
+
+    if (fechaDesde) {
+      query.andWhere('ext.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
+    }
+
+    if (fechaHasta) {
+      query.andWhere('ext.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
+    }
+
+    const camposValidos = ['fecha', 'id', 'origen'];
+    const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
+
+    query.orderBy(`ext.${campoOrdenFinal}`, ordenDireccion);
+
+    const [data, total] = await query.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
-  if (filtro.fechaDesde) {
-    query.andWhere('ext.fecha >= :desde', { desde: filtro.fechaDesde });
-  }
-
-  if (filtro.fechaHasta) {
-    query.andWhere('ext.fecha <= :hasta', { hasta: filtro.fechaHasta });
-  }
-
-  return query.getMany();
-}
 
 
   async obtenerTotalesDisponibles(): Promise<Record<'EFECTIVO' | 'BANCARIZADO', number>> {
