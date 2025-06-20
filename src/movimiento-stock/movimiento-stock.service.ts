@@ -44,8 +44,8 @@ export class MovimientoStockService {
     .leftJoin('movimiento.producto', 'producto')
     .leftJoin('producto.unidad', 'unidad')
     .leftJoin('producto.categoria', 'categoria')
-    .leftJoin('movimiento.origen_almacen', 'almacenOrigen')
-    .leftJoin('movimiento.destino_almacen', 'almacenDestino')
+    .leftJoin('movimiento.almacenOrigen', 'almacenOrigen')
+    .leftJoin('movimiento.almacenDestino', 'almacenDestino')
     .select([
       'movimiento.id',
       'movimiento.producto_id',
