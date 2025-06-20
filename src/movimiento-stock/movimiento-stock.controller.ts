@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
 import { MovimientoStockService } from './movimiento-stock.service';
 import { CreateMovimientoStockDto } from './dto/create-movimiento-stock.dto';
 import { UpdateMovimientoStockDto } from './dto/update-movimiento-stock.dto';
@@ -9,9 +9,30 @@ export class MovimientoStockController {
   constructor(private readonly service: MovimientoStockService) {}
 
   @Get()
-  getAll(): Promise<MovimientoStock[]> {
-    return this.service.findAll();
-  }
+async getAllConFiltros(
+  @Query('fechaDesde') fechaDesde?: string,
+  @Query('fechaHasta') fechaHasta?: string,
+  @Query('usuarioId') usuarioId?: string,
+  @Query('tipo') tipo?: string,
+  @Query('proveedorId') proveedorId?: string,
+  @Query('page') page: string = '1',
+  @Query('limit') limit: string = '50',
+  @Query('ordenCampo') ordenCampo: string = 'fecha',
+  @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
+) {
+  return this.service.findAllConFiltros({
+    fechaDesde,
+    fechaHasta,
+    usuarioId,
+    tipo,
+    proveedorId,
+    page: +page,
+    limit: +limit,
+    ordenCampo,
+    ordenDireccion,
+  });
+}
+
 
   @Get(':id')
   getOne(@Param('id') id: string): Promise<MovimientoStock> {
