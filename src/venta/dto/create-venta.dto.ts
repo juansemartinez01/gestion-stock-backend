@@ -1,7 +1,8 @@
-import { IsInt, IsArray, ValidateNested, IsNumber, IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsInt, IsArray, ValidateNested, IsOptional, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateVentaItemDto } from './create-venta-item.dto';
 import { CreateVentaPromoDto } from './create-venta-promo.dto';
+import { TipoIngreso } from '../../enum/ingreso-tipo.enum';
 
 export class CreateVentaDto {
   @IsInt()
@@ -21,7 +22,6 @@ export class CreateVentaDto {
   @Type(() => CreateVentaPromoDto)
   promociones?: CreateVentaPromoDto[];
 
-  @IsEnum(['EFECTIVO', 'BANCARIZADO'])
-  tipoIngreso: 'EFECTIVO' | 'BANCARIZADO';
-
+  @IsEnum(TipoIngreso, { message: 'tipoIngreso debe ser EFECTIVO o BANCARIZADO' })
+  tipoIngreso: TipoIngreso;
 }
