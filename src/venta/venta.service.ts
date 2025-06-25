@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Venta } from './venta.entity';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { VentaItem } from './venta-item.entity';
@@ -12,6 +12,7 @@ import { Usuario } from '../usuario/usuario.entity';
 import { Promocion } from 'src/promocion/promocion.entity';
 import { PromocionService } from 'src/promocion/promocion.service';
 import { IngresoVenta } from '../ingreso/ingreso-venta.entity'; // Import the entity (adjust path if needed)
+import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 
 @Injectable()
 export class VentaService {
@@ -24,6 +25,7 @@ export class VentaService {
     private readonly stockService: StockActualService,
     private readonly movService: MovimientoStockService,
     private readonly promoService: PromocionService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   
@@ -206,6 +208,79 @@ export class VentaService {
     limit,
   };
 }
+
+
+async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
+    const { fechaDesde, fechaHasta } = filtros;
+    const condiciones = [];
+    if (fechaDesde) condiciones.push(`v.fecha >= '${fechaDesde}'`);
+    if (fechaHasta) condiciones.push(`v.fecha <= '${fechaHasta}'`);
+    const whereClause = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+
+    // Ingresos totales y total ventas
+    const resumen = await this.dataSource.query(`
+      SELECT 
+        COALESCE(SUM(v.total), 0)::FLOAT AS "ingresosTotales",
+        COUNT(*) AS "totalVentas"
+      FROM venta v
+      ${whereClause};
+    `);
+
+    const { ingresosTotales, totalVentas } = resumen[0];
+
+    // Productos agregados
+    const productos = await this.dataSource.query(`
+      SELECT 
+        p.id,
+        p.descripcion AS nombre,
+        p.sku,
+        SUM(vi.cantidad)::INTEGER AS "cantidadVendida",
+        SUM(vi.subtotal)::FLOAT AS ingresos
+      FROM venta_item vi
+      JOIN producto p ON p.id = vi.producto_id
+      JOIN venta v ON v.id = vi.venta_id
+      ${whereClause}
+      GROUP BY p.id
+    `);
+
+    const productoMasVendido = productos.reduce((max: { cantidadVendida: number; }, p: { cantidadVendida: number; }) =>
+      p.cantidadVendida > max.cantidadVendida ? p : max, productos[0] || null);
+
+    const productoMasIngresos = productos.reduce((max: { ingresos: number; }, p: { ingresos: number; }) =>
+      p.ingresos > max.ingresos ? p : max, productos[0] || null);
+
+    const topProductosCantidad = [...productos]
+      .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
+      .slice(0, 5);
+
+    const topProductosIngresos = [...productos]
+      .sort((a, b) => b.ingresos - a.ingresos)
+      .slice(0, 5);
+
+    const ventasPorDia = await this.dataSource.query(`
+      SELECT 
+        TO_CHAR(v.fecha, 'YYYY-MM-DD') AS fecha,
+        COUNT(*)::INTEGER AS cantidad,
+        SUM(v.total)::FLOAT AS ingresos
+      FROM venta v
+      ${whereClause}
+      GROUP BY 1
+      ORDER BY 1;
+    `);
+
+    const promedioVenta = totalVentas > 0 ? ingresosTotales / totalVentas : 0;
+
+    return {
+      ingresosTotales,
+      totalVentas,
+      promedioVenta,
+      productoMasVendido,
+      productoMasIngresos,
+      topProductosCantidad,
+      topProductosIngresos,
+      ventasPorDia,
+    };
+  }
 
 
 }

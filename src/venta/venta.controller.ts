@@ -3,6 +3,7 @@ import { VentaService } from './venta.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { Venta } from './venta.entity';
 import { UsuarioService } from '../usuario/usuario.service';
+import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 
 @Controller('ventas')
 export class VentaController {
@@ -44,5 +45,10 @@ export class VentaController {
   @Get(':id')
   findOne(@Param('id') id: string): Promise<Venta> {
     return this.service.findOne(+id);
+  }
+
+  @Get('estadisticas')
+  obtenerEstadisticas(@Query() filtros: EstadisticasVentasDto) {
+    return this.service.obtenerEstadisticasVentas(filtros);
   }
 }
