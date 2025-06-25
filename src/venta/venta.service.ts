@@ -107,6 +107,8 @@ export class VentaService {
     return this.repo.find();
   }
 
+  
+  
   async findOne(id: number): Promise<Venta> {
     const venta = await this.repo.findOne({ where: { id } });
     if (!venta) {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, BadRequestException } from '@nestjs/common';
 import { VentaService } from './venta.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { Venta } from './venta.entity';
@@ -43,8 +43,10 @@ export class VentaController {
 
 
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<Venta> {
-    return this.service.findOne(+id);
+  findOne(@Param('id') id: string) {
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum)) throw new BadRequestException('ID inválido');
+    return this.service.findOne(idNum);
   }
 
   @Get('estadisticas')
