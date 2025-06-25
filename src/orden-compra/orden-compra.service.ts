@@ -9,6 +9,7 @@ import { ProveedorService } from '../proveedor/proveedor.service';
 import { ProductoService } from '../producto/producto.service';
 import { MovimientoStock } from 'src/movimiento-stock/movimiento-stock.entity';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
+import { FiltroOrdenCompraDto } from './dto/filtro-orden-compra.dto';
 
 
 
@@ -112,15 +113,33 @@ export class OrdenCompraService {
     return orden;
   }
 
-async obtenerTodasConFiltros(filtros: {
-  fechaDesde?: string;
-  fechaHasta?: string;
-  proveedorId?: string;
-}) {
+async obtenerTodasConFiltros(filtros: FiltroOrdenCompraDto) {
+  const pagina = filtros.pagina ?? 1;
+  const limite = filtros.limite ?? 50;
+
   const query = this.ordenRepo.createQueryBuilder('orden')
-    .leftJoinAndSelect('orden.proveedor', 'proveedor')
-    .leftJoinAndSelect('orden.items', 'items')
-    .leftJoinAndSelect('items.producto', 'producto');
+    .leftJoin('orden.proveedor', 'proveedor')
+    .leftJoin('orden.items', 'items')
+    .leftJoin('items.producto', 'producto')
+    .leftJoin('producto.unidad', 'unidad')
+    .leftJoin('producto.categoria', 'categoria')
+    .select([
+      'orden.id',
+      'orden.fecha',
+      'orden.total',
+      'proveedor.id',
+      'proveedor.nombre',
+      'items.id',
+      'items.cantidad',
+      'items.precioUnitario',
+      'items.subtotal',
+      'producto.id',
+      'producto.nombre',
+      'unidad.id',
+      'unidad.nombre',
+      'categoria.id',
+      'categoria.nombre',
+    ]);
 
   if (filtros.fechaDesde) {
     query.andWhere('orden.fecha >= :fechaDesde', { fechaDesde: filtros.fechaDesde });
@@ -134,8 +153,46 @@ async obtenerTodasConFiltros(filtros: {
     query.andWhere('proveedor.id = :proveedorId', { proveedorId: filtros.proveedorId });
   }
 
-  return await query.orderBy('orden.fecha', 'DESC').getMany();
+  const [data, total] = await query
+    .orderBy('orden.fecha', 'DESC')
+    .skip((pagina - 1) * limite)
+    .take(limite)
+    .getManyAndCount();
+
+  const resultado = data.map((orden) => ({
+    id: orden.id,
+    fecha: orden.fecha,
+    total: orden.total,
+    proveedor: {
+      id: orden.proveedor.id,
+      nombre: orden.proveedor.nombre,
+    },
+    items: orden.items.map((item) => ({
+      id: item.id,
+      cantidad: item.cantidad,
+      precioUnitario: item.precioUnitario,
+      subtotal: item.subtotal,
+      producto: {
+        id: item.producto.id,
+        nombre: item.producto.nombre,
+        unidad_id: item.producto.unidad?.id,
+        unidad_nombre: item.producto.unidad?.nombre,
+        categoria_id: item.producto.categoria?.id,
+        categoria_nombre: item.producto.categoria?.nombre,
+      },
+    })),
+  }));
+
+  return {
+    data: resultado,
+    total,
+    pagina,
+    limite,
+    totalPaginas: Math.ceil(total / limite),
+  };
 }
+
+
 
 
   findAll(): Promise<OrdenCompra[]> {

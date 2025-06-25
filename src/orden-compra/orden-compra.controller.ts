@@ -11,6 +11,7 @@ import {
 import { OrdenCompraService } from './orden-compra.service';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
 import { OrdenCompra } from './orden-compra.entity';
+import { FiltroOrdenCompraDto } from './dto/filtro-orden-compra.dto';
 
 @Controller('orden-compra')
 export class OrdenCompraController {
@@ -26,12 +27,8 @@ export class OrdenCompraController {
   
 
   @Get()
-  async obtenerTodas(
-    @Query('fechaDesde') fechaDesde?: string,
-    @Query('fechaHasta') fechaHasta?: string,
-    @Query('proveedorId') proveedorId?: string,
-  ) {
-    return this.service.obtenerTodasConFiltros({ fechaDesde, fechaHasta, proveedorId });
+  async obtenerTodas(@Query() filtros: FiltroOrdenCompraDto) {
+    return this.service.obtenerTodasConFiltros(filtros);
   }
 
 
