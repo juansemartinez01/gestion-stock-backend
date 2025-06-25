@@ -113,20 +113,37 @@ export class StockActualService {
     relations: ['producto', 'almacen'],
   });
 
-  const stockTotalPorProducto = await this.repo
+  const stockTotalPorProductoRaw = await this.repo
     .createQueryBuilder('stock')
     .select('stock.producto_id', 'productoId')
     .addSelect('SUM(stock.cantidad)', 'cantidadTotal')
+    .where('stock.almacen_id = :almacenId', { almacenId })
     .groupBy('stock.producto_id')
     .getRawMany();
+
+  const stockTotalPorProducto = stockTotalPorProductoRaw
+    .filter(item => item.productoId !== null && item.productoId !== undefined)
+    .map(item => {
+      const productoId = parseInt(item.productoId);
+      const cantidadTotal = parseFloat(item.cantidadTotal);
+
+      if (isNaN(productoId) || isNaN(cantidadTotal)) {
+        console.warn('Producto con valores inválidos:', item);
+        return null;
+      }
+
+      return {
+        productoId,
+        cantidadTotal,
+      };
+    })
+    .filter(Boolean); // elimina los null
 
   return {
     almacenId,
     productosEnAlmacen: stockPorAlmacen,
-    stockTotalPorProducto: stockTotalPorProducto.map((item) => ({
-      productoId: +item.productoId,
-      cantidadTotal: +item.cantidadTotal,
-    })),
+    stockTotalPorProducto,
   };
 }
+
 }
