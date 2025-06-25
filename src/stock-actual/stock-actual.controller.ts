@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { StockActualService } from './stock-actual.service';
 import { CreateStockActualDto } from './dto/create-stock-actual.dto';
@@ -16,33 +17,35 @@ import { StockActual } from './stock-actual.entity';
 export class StockActualController {
   constructor(private readonly service: StockActualService) {}
 
-
-  @Get(':productoId/:almacenId')
-  getOne(
-    @Param('productoId') productoId: string,
-    @Param('almacenId') almacenId: string,
-  ): Promise<StockActual> {
-    return this.service.findOne(+productoId, +almacenId);
-  }
-
-  @Get('almacen/:almacenId')
-  async getStockByAlmacen(@Param('almacenId') almacenId: string) {
-  return this.service.getStockByAlmacen(+almacenId);
-  }
+  // 🔹 GETs
 
   @Get()
   getAll(): Promise<StockActual[]> {
     return this.service.findAll();
   }
 
-  
+  @Get(':productoId/:almacenId')
+  getOne(
+    @Param('productoId', ParseIntPipe) productoId: number,
+    @Param('almacenId', ParseIntPipe) almacenId: number,
+  ): Promise<StockActual> {
+    return this.service.findOne(productoId, almacenId);
+  }
 
+  @Get('almacen/:almacenId')
+  getStockByAlmacen(
+    @Param('almacenId', ParseIntPipe) almacenId: number,
+  ): Promise<any> {
+    return this.service.getStockByAlmacen(almacenId);
+  }
 
-  
+  // 🔹 POSTs
 
   @Post('entrada')
-    registrarEntrada(@Body() dto: CreateStockActualDto): Promise<StockActual> {
-  return this.service.registrarEntrada(dto);
+  registrarEntrada(
+    @Body() dto: CreateStockActualDto,
+  ): Promise<StockActual> {
+    return this.service.registrarEntrada(dto);
   }
 
   @Post()
@@ -50,20 +53,24 @@ export class StockActualController {
     return this.service.create(dto);
   }
 
+  // 🔹 PUT
+
   @Put(':productoId/:almacenId')
   update(
-    @Param('productoId') productoId: string,
-    @Param('almacenId') almacenId: string,
+    @Param('productoId', ParseIntPipe) productoId: number,
+    @Param('almacenId', ParseIntPipe) almacenId: number,
     @Body() dto: UpdateStockActualDto,
   ): Promise<StockActual> {
-    return this.service.update(+productoId, +almacenId, dto);
+    return this.service.update(productoId, almacenId, dto);
   }
+
+  // 🔹 DELETE
 
   @Delete(':productoId/:almacenId')
   remove(
-    @Param('productoId') productoId: string,
-    @Param('almacenId') almacenId: string,
+    @Param('productoId', ParseIntPipe) productoId: number,
+    @Param('almacenId', ParseIntPipe) almacenId: number,
   ): Promise<void> {
-    return this.service.remove(+productoId, +almacenId);
+    return this.service.remove(productoId, almacenId);
   }
 }
