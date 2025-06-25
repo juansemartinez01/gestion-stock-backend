@@ -24,6 +24,13 @@ export class StockActualController {
     return this.service.findAll();
   }
 
+  @Get('almacen/:almacenId')
+  getStockByAlmacen(
+    @Param('almacenId', ParseIntPipe) almacenId: number,
+  ): Promise<any> {
+    return this.service.getStockByAlmacen(almacenId);
+  }
+
   @Get(':productoId/:almacenId')
   getOne(
     @Param('productoId', ParseIntPipe) productoId: number,
@@ -32,12 +39,7 @@ export class StockActualController {
     return this.service.findOne(productoId, almacenId);
   }
 
-  @Get('almacen/:almacenId')
-  getStockByAlmacen(
-    @Param('almacenId', ParseIntPipe) almacenId: number,
-  ): Promise<any> {
-    return this.service.getStockByAlmacen(almacenId);
-  }
+  
 
   // 🔹 POSTs
 
