@@ -40,6 +40,10 @@ export class VentaController {
     });
   }
 
+  @Get('estadisticas')
+  obtenerEstadisticas(@Query() filtros: EstadisticasVentasDto) {
+    return this.service.obtenerEstadisticasVentas(filtros);
+  }
 
 
   @Get(':id')
@@ -49,8 +53,5 @@ export class VentaController {
     return this.service.findOne(idNum);
   }
 
-  @Get('estadisticas')
-  obtenerEstadisticas(@Query() filtros: EstadisticasVentasDto) {
-    return this.service.obtenerEstadisticasVentas(filtros);
-  }
+  
 }
