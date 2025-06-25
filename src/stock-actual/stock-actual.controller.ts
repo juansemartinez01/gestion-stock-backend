@@ -24,16 +24,18 @@ export class StockActualController {
   ): Promise<StockActual> {
     return this.service.findOne(+productoId, +almacenId);
   }
-  
+
+  @Get('almacen/:almacenId')
+  async getStockByAlmacen(@Param('almacenId') almacenId: string) {
+  return this.service.getStockByAlmacen(+almacenId);
+  }
+
   @Get()
   getAll(): Promise<StockActual[]> {
     return this.service.findAll();
   }
 
-  @Get('almacen/:almacenId')
-  async getStockByAlmacen(@Param('almacenId') almacenId: string) {
-  return this.service.getStockByAlmacen(+almacenId);
-}
+  
 
 
   
