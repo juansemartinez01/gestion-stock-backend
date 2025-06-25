@@ -16,6 +16,15 @@ import { StockActual } from './stock-actual.entity';
 export class StockActualController {
   constructor(private readonly service: StockActualService) {}
 
+
+  @Get(':productoId/:almacenId')
+  getOne(
+    @Param('productoId') productoId: string,
+    @Param('almacenId') almacenId: string,
+  ): Promise<StockActual> {
+    return this.service.findOne(+productoId, +almacenId);
+  }
+  
   @Get()
   getAll(): Promise<StockActual[]> {
     return this.service.findAll();
@@ -27,13 +36,7 @@ export class StockActualController {
 }
 
 
-  @Get(':productoId/:almacenId')
-  getOne(
-    @Param('productoId') productoId: string,
-    @Param('almacenId') almacenId: string,
-  ): Promise<StockActual> {
-    return this.service.findOne(+productoId, +almacenId);
-  }
+  
 
   @Post('entrada')
     registrarEntrada(@Body() dto: CreateStockActualDto): Promise<StockActual> {
