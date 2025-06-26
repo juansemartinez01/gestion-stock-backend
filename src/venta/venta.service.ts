@@ -144,6 +144,7 @@ export class VentaService {
     fechaDesde,
     fechaHasta,
     usuarioId,
+    almacenId,
     estado,
     page = 1,
     limit = 50,
@@ -207,8 +208,12 @@ export class VentaService {
   }
 
   if (almacenId) {
-    query.andWhere('almacen.id = :almacenId', { almacenId });
+  const almacenIdNum = parseInt(almacenId, 10);
+  if (!isNaN(almacenIdNum)) {
+    query.andWhere('almacen.id = :almacenId', { almacenId: almacenIdNum });
   }
+}
+
 
   const camposValidos = ['fecha', 'id', 'estado'];
   const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';

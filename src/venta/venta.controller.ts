@@ -18,29 +18,30 @@ export class VentaController {
   }
 
     @Get()
-  async obtenerVentas(
-    @Query('fechaDesde') fechaDesde?: string,
-    @Query('fechaHasta') fechaHasta?: string,
-    @Query('usuarioId') usuarioId?: string,
-    @Query('estado') estado?: string,
-    @Query('almacen') almacenId?: string,
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '50',
-    @Query('ordenCampo') ordenCampo: string = 'fecha',
-    @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
-  ) {
-    return this.service.obtenerTodasConFiltros({
-      fechaDesde,
-      fechaHasta,
-      usuarioId,
-      estado,
-      almacenId,
-      page: +page,
-      limit: +limit,
-      ordenCampo,
-      ordenDireccion,
-    });
-  }
+    async obtenerVentas(
+      @Query('fechaDesde') fechaDesde?: string,
+      @Query('fechaHasta') fechaHasta?: string,
+      @Query('usuarioId') usuarioId?: string,
+      @Query('estado') estado?: string,
+      @Query('almacenId') almacenId?: string, 
+      @Query('page') page: string = '1',
+      @Query('limit') limit: string = '50',
+      @Query('ordenCampo') ordenCampo: string = 'fecha',
+      @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
+    ) {
+      return this.service.obtenerTodasConFiltros({
+        fechaDesde,
+        fechaHasta,
+        usuarioId,
+        estado,
+        almacenId,
+        page: +page,
+        limit: +limit,
+        ordenCampo,
+        ordenDireccion,
+      });
+    }
+
 
   @Get('estadisticas')
   obtenerEstadisticas(@Query() filtros: EstadisticasVentasDto) {
