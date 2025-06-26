@@ -32,72 +32,61 @@ export class IngresoVentaService {
   }
 
     async obtenerTodosConFiltros(filtros: FiltroIngresoVentaDto & {
-    page?: number;
-    limit?: number;
-    ordenCampo?: string;
-    ordenDireccion?: 'ASC' | 'DESC';
-  }): Promise<{
-    data: any[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const {
-      tipo,
-      ventaId,
-      montoMin,
-      montoMax,
-      fechaDesde,
-      fechaHasta,
-      page = 1,
-      limit = 50,
-      ordenCampo = 'fecha',
-      ordenDireccion = 'DESC',
-    } = filtros;
+  page?: number;
+  limit?: number;
+  ordenCampo?: string;
+  ordenDireccion?: 'ASC' | 'DESC';
+  almacenId?: number;
+}): Promise<{
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+}> {
+  const {
+    tipo,
+    ventaId,
+    montoMin,
+    montoMax,
+    fechaDesde,
+    fechaHasta,
+    almacenId, // ✅ nuevo
+    page = 1,
+    limit = 50,
+    ordenCampo = 'fecha',
+    ordenDireccion = 'DESC',
+  } = filtros;
 
-    const query = this.repo.createQueryBuilder('ingreso')
-      .leftJoinAndSelect('ingreso.venta', 'venta')
-      .skip((page - 1) * limit)
-      .take(limit);
+  const query = this.repo.createQueryBuilder('ingreso')
+    .leftJoinAndSelect('ingreso.venta', 'venta')
+    .leftJoin('venta.almacen', 'almacen') // ✅ nuevo JOIN
+    .skip((page - 1) * limit)
+    .take(limit);
 
-    if (tipo) {
-      query.andWhere('ingreso.tipo = :tipo', { tipo });
-    }
+  if (tipo) query.andWhere('ingreso.tipo = :tipo', { tipo });
+  if (ventaId) query.andWhere('venta.id = :ventaId', { ventaId });
+  if (montoMin !== undefined) query.andWhere('ingreso.monto >= :montoMin', { montoMin });
+  if (montoMax !== undefined) query.andWhere('ingreso.monto <= :montoMax', { montoMax });
+  if (fechaDesde) query.andWhere('ingreso.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
+  if (fechaHasta) query.andWhere('ingreso.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
 
-    if (ventaId) {
-      query.andWhere('venta.id = :ventaId', { ventaId });
-    }
+  if (almacenId) query.andWhere('almacen.id = :almacenId', { almacenId }); // ✅ filtro
 
-    if (montoMin !== undefined) {
-      query.andWhere('ingreso.monto >= :montoMin', { montoMin });
-    }
+  const camposValidos = ['fecha', 'id', 'monto', 'tipo'];
+  const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
 
-    if (montoMax !== undefined) {
-      query.andWhere('ingreso.monto <= :montoMax', { montoMax });
-    }
+  query.orderBy(`ingreso.${campoOrdenFinal}`, ordenDireccion);
 
-    if (fechaDesde) {
-      query.andWhere('ingreso.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
-    }
+  const [data, total] = await query.getManyAndCount();
 
-    if (fechaHasta) {
-      query.andWhere('ingreso.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
-    }
+  return {
+    data,
+    total,
+    page,
+    limit,
+  };
+}
 
-    const camposValidos = ['fecha', 'id', 'monto', 'tipo'];
-    const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
-
-    query.orderBy(`ingreso.${campoOrdenFinal}`, ordenDireccion);
-
-    const [data, total] = await query.getManyAndCount();
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-    };
-  }
 
 
   async obtenerResumen(filtros: { fechaDesde?: string; fechaHasta?: string }) {

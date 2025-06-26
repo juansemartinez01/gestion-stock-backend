@@ -20,12 +20,12 @@ async obtenerIngresosConFiltros(
   @Query('montoMax') montoMax?: string,
   @Query('fechaDesde') fechaDesde?: string,
   @Query('fechaHasta') fechaHasta?: string,
+  @Query('almacenId') almacenId?: string, // ✅ nuevo
   @Query('page') page: string = '1',
   @Query('limit') limit: string = '50',
   @Query('ordenCampo') ordenCampo: string = 'fecha',
   @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
 ) {
-  // Only allow "EFECTIVO" or "BANCARIZADO" as tipo
   const tipoFiltrado: "EFECTIVO" | "BANCARIZADO" | undefined =
     tipo === "EFECTIVO" || tipo === "BANCARIZADO" ? tipo : undefined;
 
@@ -36,12 +36,14 @@ async obtenerIngresosConFiltros(
     montoMax: montoMax ? +montoMax : undefined,
     fechaDesde,
     fechaHasta,
+    almacenId: almacenId ? +almacenId : undefined, 
     page: +page,
     limit: +limit,
     ordenCampo,
     ordenDireccion,
   });
 }
+
 
 
   @Get('resumen')
