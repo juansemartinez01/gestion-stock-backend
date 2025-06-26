@@ -28,7 +28,7 @@ export class Venta {
   @OneToMany(() => IngresoVenta, ingreso => ingreso.venta)
   ingresos: IngresoVenta[];
 
-  @ManyToOne(() => Almacen, { nullable: true })
+  @ManyToOne(() => Almacen, { nullable: false })
   @JoinColumn({ name: 'almacen_id' })
   almacen: Almacen;
 

@@ -17,7 +17,7 @@ export class Usuario {
   @Column({ name: 'clave_hash', length: 255 })
   clave_hash: string;
 
-  @Column({ length: 255, unique: true })
+  @Column({ length: 255, unique: false })
   email: string;
 
   @OneToMany(() => UsuarioRol, usuarioRol => usuarioRol.usuario)
