@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDat
 import { VentaItem } from './venta-item.entity';
 import { Usuario } from '../usuario/usuario.entity';
 import { IngresoVenta } from 'src/ingreso/ingreso-venta.entity';
+import { Almacen } from 'src/almacen/almacen.entity';
 
 @Entity('venta')
 export class Venta {
@@ -26,5 +27,9 @@ export class Venta {
 
   @OneToMany(() => IngresoVenta, ingreso => ingreso.venta)
   ingresos: IngresoVenta[];
+
+  @ManyToOne(() => Almacen, { nullable: true })
+  @JoinColumn({ name: 'almacen_id' })
+  almacen: Almacen;
 
 }

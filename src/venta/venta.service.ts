@@ -13,6 +13,7 @@ import { Promocion } from 'src/promocion/promocion.entity';
 import { PromocionService } from 'src/promocion/promocion.service';
 import { IngresoVenta } from '../ingreso/ingreso-venta.entity'; // Import the entity (adjust path if needed)
 import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
+import { Almacen } from 'src/almacen/almacen.entity';
 
 @Injectable()
 export class VentaService {
@@ -71,9 +72,13 @@ export class VentaService {
       }
     }
 
+
+    const almacen = await this.dataSource.getRepository(Almacen).findOneBy({ id: dto.almacenId });
+    if (!almacen) throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
     // 3) Crear la venta
     const venta = this.repo.create({
       usuario: dto.usuario,
+      almacen,
       items,
       total: Number(total.toFixed(2)),
       estado: 'CONFIRMADA',
@@ -123,6 +128,7 @@ export class VentaService {
     fechaHasta?: string;
     usuarioId?: string;
     estado?: string;
+    almacenId?: string;
     page?: number;
     limit?: number;
     ordenCampo?: string;
@@ -151,6 +157,7 @@ export class VentaService {
     .leftJoin('items.producto', 'producto')
     .leftJoin('producto.unidad', 'unidad')
     .leftJoin('producto.categoria', 'categoria')
+    .leftJoin('venta.almacen', 'almacen')
     .select([
       'venta.id',
       'venta.fecha',
@@ -173,6 +180,9 @@ export class VentaService {
 
       'unidad.nombre',
       'categoria.nombre',
+
+      'almacen.id',
+      'almacen.nombre',
     ])
     .skip((page - 1) * limit)
     .take(limit);
@@ -194,6 +204,10 @@ export class VentaService {
     if (estados.length > 0) {
       query.andWhere('venta.estado IN (:...estados)', { estados });
     }
+  }
+
+  if (almacenId) {
+    query.andWhere('almacen.id = :almacenId', { almacenId });
   }
 
   const camposValidos = ['fecha', 'id', 'estado'];
