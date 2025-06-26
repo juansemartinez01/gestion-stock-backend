@@ -47,11 +47,17 @@ async obtenerIngresosConFiltros(
 
 
   @Get('resumen')
-async resumen(
-  @Query('fechaDesde') fechaDesde?: string,
-  @Query('fechaHasta') fechaHasta?: string,
-) {
-  return this.service.obtenerResumen({ fechaDesde, fechaHasta });
-}
+  async resumen(
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
+    @Query('almacenId') almacenId?: string, 
+  ) {
+    return this.service.obtenerResumen({
+      fechaDesde,
+      fechaHasta,
+      almacenId: almacenId ? +almacenId : undefined, 
+    });
+  }
+
 
 }

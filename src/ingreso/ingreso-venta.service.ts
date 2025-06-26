@@ -89,46 +89,58 @@ export class IngresoVentaService {
 
 
 
-  async obtenerResumen(filtros: { fechaDesde?: string; fechaHasta?: string }) {
-  const { fechaDesde, fechaHasta } = filtros;
+  async obtenerResumen(filtros: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    almacenId?: number;
+  }) {
+    const { fechaDesde, fechaHasta, almacenId } = filtros;
 
-  const condiciones: string[] = [];
-  const parametros: Record<string, any> = {};
+    const condiciones: string[] = [];
+    const parametros: Record<string, any> = {};
 
-  if (fechaDesde) {
-    condiciones.push('ingreso.fecha >= :fechaDesde');
-    parametros.fechaDesde = new Date(fechaDesde);
+    if (fechaDesde) {
+      condiciones.push('ingreso.fecha >= :fechaDesde');
+      parametros.fechaDesde = new Date(fechaDesde);
+    }
+
+    if (fechaHasta) {
+      condiciones.push('ingreso.fecha <= :fechaHasta');
+      parametros.fechaHasta = new Date(fechaHasta);
+    }
+
+    if (almacenId) {
+      condiciones.push('venta.almacen_id = :almacenId');
+      parametros.almacenId = almacenId;
+    }
+
+    const whereBase = condiciones.length > 0 ? `AND ${condiciones.join(' AND ')}` : '';
+
+    const [efectivo, bancarizado] = await Promise.all([
+      this.repo
+        .createQueryBuilder('ingreso')
+        .innerJoin('ingreso.venta', 'venta') // ✅ importante para acceder al almacén
+        .select('SUM(ingreso.monto)', 'total')
+        .where(`ingreso.tipo = :tipo ${whereBase}`, { tipo: 'EFECTIVO', ...parametros })
+        .getRawOne(),
+
+      this.repo
+        .createQueryBuilder('ingreso')
+        .innerJoin('ingreso.venta', 'venta') // ✅ también acá
+        .select('SUM(ingreso.monto)', 'total')
+        .where(`ingreso.tipo = :tipo ${whereBase}`, { tipo: 'BANCARIZADO', ...parametros })
+        .getRawOne(),
+    ]);
+
+    const totalEfectivo = parseFloat(efectivo?.total || '0');
+    const totalBancarizado = parseFloat(bancarizado?.total || '0');
+
+    return {
+      efectivo: totalEfectivo,
+      bancarizado: totalBancarizado,
+      total: totalEfectivo + totalBancarizado,
+    };
   }
 
-  if (fechaHasta) {
-    condiciones.push('ingreso.fecha <= :fechaHasta');
-    parametros.fechaHasta = new Date(fechaHasta);
-  }
-
-  const whereBase = condiciones.length > 0 ? `AND ${condiciones.join(' AND ')}` : '';
-
-  const [efectivo, bancarizado] = await Promise.all([
-    this.repo
-      .createQueryBuilder('ingreso')
-      .select('SUM(ingreso.monto)', 'total')
-      .where(`ingreso.tipo = :tipo ${whereBase}`, { tipo: 'EFECTIVO', ...parametros })
-      .getRawOne(),
-
-    this.repo
-      .createQueryBuilder('ingreso')
-      .select('SUM(ingreso.monto)', 'total')
-      .where(`ingreso.tipo = :tipo ${whereBase}`, { tipo: 'BANCARIZADO', ...parametros })
-      .getRawOne(),
-  ]);
-
-  const totalEfectivo = parseFloat(efectivo?.total || '0');
-  const totalBancarizado = parseFloat(bancarizado?.total || '0');
-
-  return {
-    efectivo: totalEfectivo,
-    bancarizado: totalBancarizado,
-    total: totalEfectivo + totalBancarizado,
-  };
-}
 
 }
