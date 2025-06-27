@@ -317,5 +317,32 @@ async actualizarEstado(id: number, dto: UpdateEstadoVentaDto): Promise<Venta> {
   return this.repo.save(venta);
 }
 
+// estadisticas.service.ts
+async obtenerTotalPorCategoria(fechaDesde?: string, fechaHasta?: string) {
+  const query = this.dataSource.createQueryRunner();
+  await query.connect();
+
+  const resultados = await query.query(
+    `
+    SELECT
+      c.id AS "categoriaId",
+      c.nombre AS "categoriaNombre",
+      SUM(vi.subtotal) AS "totalGenerado"
+    FROM venta_item vi
+    JOIN producto p ON p.id = vi.producto_id
+    JOIN categoria c ON c.id = p.categoria_id
+    JOIN venta v ON v.id = vi.venta_id
+    WHERE ($1::timestamp IS NULL OR v.fecha >= $1)
+      AND ($2::timestamp IS NULL OR v.fecha <= $2)
+    GROUP BY c.id, c.nombre
+    ORDER BY "totalGenerado" DESC;
+    `,
+    [fechaDesde || null, fechaHasta || null],
+  );
+
+  await query.release();
+  return resultados;
+}
+
 
 }

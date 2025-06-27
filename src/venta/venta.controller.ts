@@ -49,6 +49,14 @@ export class VentaController {
     return this.service.obtenerEstadisticasVentas(filtros);
   }
 
+  @Get('ingresos-por-categoria')
+  obtenerTotalPorCategoria(
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
+  ) {
+    return this.service.obtenerTotalPorCategoria(fechaDesde, fechaHasta);
+  }
+
 
   @Get(':id')
   findOne(@Param('id') id: string) {
