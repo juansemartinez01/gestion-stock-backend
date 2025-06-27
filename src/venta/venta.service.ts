@@ -14,6 +14,7 @@ import { PromocionService } from 'src/promocion/promocion.service';
 import { IngresoVenta } from '../ingreso/ingreso-venta.entity'; // Import the entity (adjust path if needed)
 import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 import { Almacen } from 'src/almacen/almacen.entity';
+import { UpdateEstadoVentaDto } from './dto/update-estado-venta.dto';
 
 @Injectable()
 export class VentaService {
@@ -302,6 +303,19 @@ async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
       ventasPorDia,
     };
   }
+
+  // src/venta/venta.service.ts
+async actualizarEstado(id: number, dto: UpdateEstadoVentaDto): Promise<Venta> {
+  const venta = await this.repo.findOneBy({ id });
+
+  if (!venta) {
+    throw new Error(`No se encontró una venta con ID ${id}`);
+  }
+
+  venta.estado = dto.estado;
+
+  return this.repo.save(venta);
+}
 
 
 }

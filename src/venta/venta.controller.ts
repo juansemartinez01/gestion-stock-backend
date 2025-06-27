@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, BadRequestException, Put } from '@nestjs/common';
 import { VentaService } from './venta.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { Venta } from './venta.entity';
 import { UsuarioService } from '../usuario/usuario.service';
 import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
+import { UpdateEstadoVentaDto } from './dto/update-estado-venta.dto';
 
 @Controller('ventas')
 export class VentaController {
@@ -54,6 +55,14 @@ export class VentaController {
     const idNum = parseInt(id, 10);
     if (isNaN(idNum)) throw new BadRequestException('ID inválido');
     return this.service.findOne(idNum);
+  }
+
+  @Put(':id/estado')
+  actualizarEstado(
+    @Param('id') id: number,
+    @Body() dto: UpdateEstadoVentaDto,
+  ): Promise<Venta> {
+    return this.service.actualizarEstado(+id, dto);
   }
 
   
