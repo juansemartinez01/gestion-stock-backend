@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MaxLength, IsEmail, IsInt, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsEmail, IsInt, IsOptional, IsArray } from 'class-validator';
 
 export class CreateUsuarioDto {
   @IsString()
@@ -17,5 +17,9 @@ export class CreateUsuarioDto {
   @MaxLength(255)
   email: string;
 
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  roles?: number[]; // IDs de roles nuevos
 
 }
