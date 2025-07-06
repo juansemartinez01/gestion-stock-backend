@@ -55,26 +55,30 @@ export class UsuarioService {
 }
 
   async update(id: number, dto: UpdateUsuarioDto): Promise<Usuario> {
-    const usuario = await this.findOne(id);
+  const usuario = await this.findOne(id);
 
-    if (dto.usuario && dto.usuario !== usuario.usuario) {
-      const existente = await this.repo.findOne({ where: { usuario: dto.usuario } });
-      if (existente) {
-        throw new BadRequestException(`El nombre de usuario '${dto.usuario}' ya está en uso.`);
-      }
-      usuario.usuario = dto.usuario;
+  // Validar si se cambia el nombre de usuario
+  if (dto.usuario && dto.usuario !== usuario.usuario) {
+    const existente = await this.repo.findOne({ where: { usuario: dto.usuario } });
+    if (existente) {
+      throw new BadRequestException(`El nombre de usuario '${dto.usuario}' ya está en uso.`);
     }
+    usuario.usuario = dto.usuario;
+  }
 
-    if (dto.nombre !== undefined) usuario.nombre = dto.nombre;
-    if (dto.email !== undefined) usuario.email = dto.email;
+  if (dto.nombre !== undefined) usuario.nombre = dto.nombre;
+  if (dto.email !== undefined) usuario.email = dto.email;
 
-    if (dto.password !== undefined && dto.password.trim() !== '') {
-      usuario.clave_hash = await bcrypt.hash(dto.password, 10);
-    }
+  if (dto.password !== undefined && dto.password.trim() !== '') {
+    usuario.clave_hash = await bcrypt.hash(dto.password, 10);
+  }
 
-    // Actualizar roles si se enviaron
-    if (dto.roles) {
-    // Validar que los roles existan
+  // Guardamos primero el usuario
+  await this.repo.save(usuario);
+
+  // 👉 Actualizar roles si se enviaron
+  if (dto.roles) {
+    // Validar que todos los roles existan
     for (const rolId of dto.roles) {
       const existe = await this.rolRepo.findOneBy({ id: rolId });
       if (!existe) {
@@ -83,22 +87,22 @@ export class UsuarioService {
     }
 
     // Eliminar roles actuales
-    await this.usuarioRolRepo.delete({ usuarioId: id });
+    await this.usuarioRolRepo.delete({ usuario: { id } });
 
     // Insertar nuevos roles
     const nuevosRoles: UsuarioRol[] = dto.roles.map(rolId => {
-      const usuarioRol = new UsuarioRol();
-      usuarioRol.usuarioId = id;
-      usuarioRol.rolId = rolId;
-      return usuarioRol;
+      const ur = new UsuarioRol();
+      ur.usuarioId = id;
+      ur.rolId = rolId;
+      return ur;
     });
 
     await this.usuarioRolRepo.save(nuevosRoles);
   }
 
-    await this.repo.save(usuario);
-    return this.findOne(id);
-  }
+  return this.findOne(id); // Devuelve el usuario con relaciones actualizadas
+}
+
 
 
 
