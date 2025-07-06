@@ -74,19 +74,27 @@ export class UsuarioService {
 
     // Actualizar roles si se enviaron
     if (dto.roles) {
-      // Eliminar roles actuales
-      await this.usuarioRolRepo.delete({ usuario: { id } });
-
-      // Insertar nuevos roles
-      const nuevosRoles: UsuarioRol[] = dto.roles.map(rolId => {
-        const usuarioRol = new UsuarioRol();
-        usuarioRol.usuario = usuario;
-        usuarioRol.rol = { id: rolId } as Role;
-        return usuarioRol;
-      });
-
-      await this.usuarioRolRepo.save(nuevosRoles);
+    // Validar que los roles existan
+    for (const rolId of dto.roles) {
+      const existe = await this.rolRepo.findOneBy({ id: rolId });
+      if (!existe) {
+        throw new BadRequestException(`El rol con id ${rolId} no existe.`);
+      }
     }
+
+    // Eliminar roles actuales
+    await this.usuarioRolRepo.delete({ usuarioId: id });
+
+    // Insertar nuevos roles
+    const nuevosRoles: UsuarioRol[] = dto.roles.map(rolId => {
+      const usuarioRol = new UsuarioRol();
+      usuarioRol.usuarioId = id;
+      usuarioRol.rolId = rolId;
+      return usuarioRol;
+    });
+
+    await this.usuarioRolRepo.save(nuevosRoles);
+  }
 
     await this.repo.save(usuario);
     return this.findOne(id);
