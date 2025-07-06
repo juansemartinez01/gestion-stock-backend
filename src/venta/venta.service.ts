@@ -130,6 +130,7 @@ export class VentaService {
     usuarioId?: string;
     estado?: string;
     almacenId?: string;
+    tipo?: 'EFECTIVO' | 'BANCARIZADO'; // ✅ nuevo
     page?: number;
     limit?: number;
     ordenCampo?: string;
@@ -147,6 +148,7 @@ export class VentaService {
     usuarioId,
     almacenId,
     estado,
+    tipo, // ✅ nuevo
     page = 1,
     limit = 50,
     ordenCampo = 'fecha',
@@ -160,6 +162,7 @@ export class VentaService {
     .leftJoin('producto.unidad', 'unidad')
     .leftJoin('producto.categoria', 'categoria')
     .leftJoin('venta.almacen', 'almacen')
+    .leftJoin('venta.ingresos', 'ingreso') // 👈 importante para acceder a tipo
     .select([
       'venta.id',
       'venta.fecha',
@@ -185,6 +188,9 @@ export class VentaService {
 
       'almacen.id',
       'almacen.nombre',
+
+      'ingreso.tipo', // opcional si querés verlo
+      'ingreso.monto'
     ])
     .skip((page - 1) * limit)
     .take(limit);
@@ -209,12 +215,16 @@ export class VentaService {
   }
 
   if (almacenId) {
-  const almacenIdNum = parseInt(almacenId, 10);
-  if (!isNaN(almacenIdNum)) {
-    query.andWhere('almacen.id = :almacenId', { almacenId: almacenIdNum });
+    const almacenIdNum = parseInt(almacenId, 10);
+    if (!isNaN(almacenIdNum)) {
+      query.andWhere('almacen.id = :almacenId', { almacenId: almacenIdNum });
+    }
   }
-}
 
+  // ✅ Filtro por tipo de ingreso
+  if (tipo) {
+    query.andWhere('ingreso.tipo = :tipo', { tipo });
+  }
 
   const camposValidos = ['fecha', 'id', 'estado'];
   const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
@@ -230,6 +240,7 @@ export class VentaService {
     limit,
   };
 }
+
 
 
 async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
