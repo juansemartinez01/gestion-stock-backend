@@ -12,6 +12,7 @@ import { StockActualService } from './stock-actual.service';
 import { CreateStockActualDto } from './dto/create-stock-actual.dto';
 import { UpdateStockActualDto } from './dto/update-stock-actual.dto';
 import { StockActual } from './stock-actual.entity';
+import { RegistrarInsumoDto } from './dto/registrar-insumo.dto';
 
 @Controller('stock-actual')
 export class StockActualController {
@@ -49,6 +50,14 @@ export class StockActualController {
   ): Promise<StockActual> {
     return this.service.registrarEntrada(dto);
   }
+
+  @Post('insumo')
+  registrarInsumo(
+    @Body() dto: RegistrarInsumoDto,
+  ): Promise<StockActual> {
+    return this.service.registrarInsumo(dto);
+  }
+
 
   @Post()
   create(@Body() dto: CreateStockActualDto): Promise<StockActual> {
