@@ -6,6 +6,7 @@ import { CreateStockActualDto } from './dto/create-stock-actual.dto';
 import { UpdateStockActualDto } from './dto/update-stock-actual.dto';
 import { MovimientoStockService } from 'src/movimiento-stock/movimiento-stock.service';
 import { RegistrarInsumoDto } from './dto/registrar-insumo.dto';
+import { CancelarInsumoDto } from './dto/cancelar-insumo.dto';
 
 @Injectable()
 export class StockActualService {
@@ -169,6 +170,30 @@ async registrarInsumo(dto: RegistrarInsumoDto): Promise<StockActual> {
   });
 
   return updated;
+}
+
+async cancelarInsumo(dto: CancelarInsumoDto): Promise<StockActual> {
+  const movimiento = await this.movService.findOne(dto.movimiento_id);
+
+  if (movimiento.tipo !== 'insumo') {
+    throw new Error('Solo se pueden cancelar movimientos de tipo "insumo"');
+  }
+
+  if (!movimiento.origen_almacen) {
+    throw new Error('El movimiento de insumo no tiene un almacén origen definido');
+  }
+
+  // Devolver el stock
+  const stockActualizado = await this.changeStock(
+    movimiento.producto_id,
+    movimiento.origen_almacen,
+    movimiento.cantidad,
+  );
+
+  // Eliminar el movimiento
+  await this.movService.remove(movimiento.id);
+
+  return stockActualizado;
 }
 
 
