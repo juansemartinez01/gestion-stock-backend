@@ -40,7 +40,8 @@ export class MovimientoStock {
   cantidad: number;
 
   @Column({ length: 20 })
-  tipo: 'entrada' | 'salida' | 'traspaso';
+  tipo: 'entrada' | 'salida' | 'traspaso' | 'insumo'; 
+
 
   @CreateDateColumn({ name: 'fecha' })
   fecha: Date;

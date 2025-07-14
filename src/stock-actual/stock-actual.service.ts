@@ -5,6 +5,7 @@ import { StockActual } from './stock-actual.entity';
 import { CreateStockActualDto } from './dto/create-stock-actual.dto';
 import { UpdateStockActualDto } from './dto/update-stock-actual.dto';
 import { MovimientoStockService } from 'src/movimiento-stock/movimiento-stock.service';
+import { RegistrarInsumoDto } from './dto/registrar-insumo.dto';
 
 @Injectable()
 export class StockActualService {
@@ -145,5 +146,30 @@ export class StockActualService {
     stockTotalPorProducto,
   };
 }
+
+async registrarInsumo(dto: RegistrarInsumoDto): Promise<StockActual> {
+  const stock = await this.findOne(dto.producto_id, dto.almacen_id);
+
+  const nombreProducto = stock.producto?.nombre || 'producto';
+
+  // Descontar del stock
+  const updated = await this.changeStock(dto.producto_id, dto.almacen_id, -dto.cantidad);
+
+  // Registrar como movimiento tipo "insumo"
+  await this.movService.create({
+    producto_id: dto.producto_id,
+    origen_almacen: dto.almacen_id,
+    destino_almacen: undefined,
+    cantidad: dto.cantidad,
+    tipo: 'insumo',
+    motivo: `El producto "${nombreProducto}" fue utilizado como insumo`,
+    proveedor_id: undefined,
+    precioUnitario: undefined,
+    precioTotal: undefined,
+  });
+
+  return updated;
+}
+
 
 }

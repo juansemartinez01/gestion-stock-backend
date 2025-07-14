@@ -16,8 +16,8 @@ export class CreateMovimientoStockDto {
   @Min(1)
   cantidad: number;
 
-  @IsIn(['entrada', 'salida', 'traspaso'])
-  tipo: 'entrada' | 'salida' | 'traspaso';
+  @IsIn(['entrada', 'salida', 'traspaso', 'insumo'])
+  tipo: 'entrada' | 'salida' | 'traspaso' | 'insumo';
 
   @IsInt()
   @IsOptional()
