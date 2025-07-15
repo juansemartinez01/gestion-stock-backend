@@ -15,6 +15,7 @@ import { IngresoVenta } from '../ingreso/ingreso-venta.entity'; // Import the en
 import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 import { Almacen } from 'src/almacen/almacen.entity';
 import { UpdateEstadoVentaDto } from './dto/update-estado-venta.dto';
+import { CreateVentaMixtaDto } from './dto/create-venta-mixta.dto';
 
 @Injectable()
 export class VentaService {
@@ -373,6 +374,87 @@ async obtenerTotalPorCategoria(fechaDesde?: string, fechaHasta?: string) {
 
   await query.release();
   return resultados;
+}
+
+async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
+  const items: VentaItem[] = [];
+  let total = 0;
+
+  for (const it of dto.items) {
+    const producto = await this.productoService.findOne(it.productoId);
+    if (!producto) throw new NotFoundException(`Producto ${it.productoId} no encontrado`);
+
+    const subtotal = Number((it.cantidad * it.precioUnitario).toFixed(2));
+    total += subtotal;
+
+    const ventaItem = new VentaItem();
+    ventaItem.producto = producto;
+    ventaItem.cantidad = it.cantidad;
+    ventaItem.precioUnitario = it.precioUnitario;
+    ventaItem.subtotal = subtotal;
+    items.push(ventaItem);
+  }
+
+  if (dto.promociones) {
+    for (const promoItem of dto.promociones) {
+      const promo = await this.promoService.getPromocionById(promoItem.promocionId);
+      if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
+
+      const subtotal = Number((promo.precioPromo * promoItem.cantidad).toFixed(2));
+      total += subtotal;
+
+      for (const p of promo.productos) {
+        const ventaItem = new VentaItem();
+        ventaItem.producto = p.producto;
+        ventaItem.cantidad = p.cantidad * promoItem.cantidad;
+        ventaItem.precioUnitario = 0;
+        ventaItem.subtotal = 0;
+        items.push(ventaItem);
+      }
+    }
+  }
+
+  const almacen = await this.dataSource.getRepository(Almacen).findOneBy({ id: dto.almacenId });
+  if (!almacen) throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
+
+  const venta = this.repo.create({
+    usuario: dto.usuario,
+    almacen,
+    items,
+    total: Number(total.toFixed(2)),
+    estado: 'CONFIRMADA',
+  });
+
+  const saved = await this.repo.save(venta);
+
+  // Guardar los dos ingresos
+  await this.ingresoVentaRepo.save([
+    {
+      venta: saved,
+      tipo: 'EFECTIVO',
+      monto: dto.montoEfectivo,
+    },
+    {
+      venta: saved,
+      tipo: 'BANCARIZADO',
+      monto: dto.montoBancarizado,
+    },
+  ]);
+
+  // Descontar stock y registrar movimientos
+  for (const it of items) {
+    await this.stockService.changeStock(it.producto.id, dto.almacenId, -it.cantidad);
+    await this.movService.create({
+      producto_id: it.producto.id,
+      origen_almacen: dto.almacenId,
+      destino_almacen: undefined,
+      cantidad: it.cantidad,
+      tipo: 'salida',
+      motivo: `Venta #${saved.id}`,
+    });
+  }
+
+  return saved;
 }
 
 

@@ -5,6 +5,7 @@ import { Venta } from './venta.entity';
 import { UsuarioService } from '../usuario/usuario.service';
 import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 import { UpdateEstadoVentaDto } from './dto/update-estado-venta.dto';
+import { CreateVentaMixtaDto } from './dto/create-venta-mixta.dto';
 
 @Controller('ventas')
 export class VentaController {
@@ -17,6 +18,13 @@ export class VentaController {
     const usuario = await this.usuarioService.findOne(dto.usuarioId);
     return this.service.create({ ...dto, usuario });
   }
+
+  @Post('mixta')
+async createMixta(@Body() dto: CreateVentaMixtaDto) {
+  const usuario = await this.usuarioService.findOne(dto.usuarioId);
+  return this.service.crearVentaMixta({ ...dto, usuario });
+}
+
 
     @Get()
     async obtenerVentas(
