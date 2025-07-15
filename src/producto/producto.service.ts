@@ -96,7 +96,7 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
   const query = this.repo.createQueryBuilder('producto')
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
-    .leftJoinAndSelect('producto.compras', 'compras') // opcional
+    .leftJoinAndSelect('producto.compras', 'compras')
     .leftJoinAndSelect('stock_actual', 'stock', 'stock.producto_id = producto.id')
     .leftJoinAndSelect('stock.almacen', 'almacen');
 
@@ -112,24 +112,29 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     query.andWhere('producto.barcode = :barcode', { barcode });
   }
 
-  if (!isNaN(Number(categoriaId))) {
-    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: Number(categoriaId) });
+  const categoriaIdParsed = parseInt(categoriaId as any, 10);
+  if (!isNaN(categoriaIdParsed)) {
+    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: categoriaIdParsed });
   }
 
-  if (!isNaN(Number(unidadId))) {
-    query.andWhere('producto.unidad_id = :unidadId', { unidadId: Number(unidadId) });
+  const unidadIdParsed = parseInt(unidadId as any, 10);
+  if (!isNaN(unidadIdParsed)) {
+    query.andWhere('producto.unidad_id = :unidadId', { unidadId: unidadIdParsed });
   }
 
-  if (conStock === true || conStock === 'true' as any) {
+  const almacenIdParsed = parseInt(almacenId as any, 10);
+  if (!isNaN(almacenIdParsed)) {
+    query.andWhere('stock.almacen_id = :almacenId', { almacenId: almacenIdParsed });
+  }
+
+  const conStockBool = conStock === true || (typeof conStock === 'string' && conStock === 'true');
+  if (conStockBool) {
     query.andWhere('stock.cantidad > 0');
-  }
-
-  if (!isNaN(Number(almacenId))) {
-    query.andWhere('stock.almacen_id = :almacenId', { almacenId: Number(almacenId) });
   }
 
   return query.getMany();
 }
+
 
 
 
