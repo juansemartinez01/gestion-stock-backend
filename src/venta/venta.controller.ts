@@ -75,5 +75,12 @@ export class VentaController {
     return this.service.actualizarEstado(+id, dto);
   }
 
+  @Get(':id/completa')
+getVentaCompleta(@Param('id') id: string) {
+  const idNum = parseInt(id, 10);
+  if (isNaN(idNum)) throw new BadRequestException('ID inválido');
+  return this.service.getVentaCompleta(idNum);
+}
+
   
 }

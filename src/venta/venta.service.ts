@@ -241,6 +241,26 @@ export class VentaService {
   };
 }
 
+async getVentaCompleta(id: number): Promise<Venta> {
+  const venta = await this.repo.findOne({
+    where: { id },
+    relations: [
+      'usuario',
+      'almacen',
+      'items',
+      'items.producto',
+      'items.producto.unidad',
+      'items.producto.categoria',
+      'ingresos',
+    ],
+  });
+
+  if (!venta) {
+    throw new NotFoundException(`Venta con ID ${id} no encontrada`);
+  }
+
+  return venta;
+}
 
 
 async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
