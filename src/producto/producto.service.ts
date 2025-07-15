@@ -55,8 +55,10 @@ export class ProductoService {
 
   async findOne(id: number): Promise<Producto> {
   const idParsed = Number(id);
+
+  // Si el ID no es un número entero válido, devolvemos un producto vacío
   if (!Number.isInteger(idParsed)) {
-    throw new BadRequestException(`ID inválido para producto: ${id}`);
+    return this.getDefaultProducto();
   }
 
   const prod = await this.repo.findOne({
@@ -64,13 +66,16 @@ export class ProductoService {
     relations: ['unidad', 'categoria'],
   });
 
-  if (!prod) {
-    throw new NotFoundException(`Producto ${idParsed} no encontrado`);
-  }
-
-  return prod;
+  return prod ?? this.getDefaultProducto();
 }
-
+  private getDefaultProducto(): Producto {
+    const defaultProducto = new Producto();
+    defaultProducto.id = -1; // ID inválido
+    defaultProducto.nombre = 'Producto no encontrado';
+    defaultProducto.sku = 'N/A';
+    defaultProducto.barcode = 'N/A';
+    return defaultProducto;
+  }
 
   
 
