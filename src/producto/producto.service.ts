@@ -97,9 +97,7 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .leftJoinAndSelect('producto.compras', 'compras') // opcional
-    .leftJoinAndSelect('stock_actual', 'stock',
-      'stock.producto_id = producto.id'
-    )
+    .leftJoinAndSelect('stock_actual', 'stock', 'stock.producto_id = producto.id')
     .leftJoinAndSelect('stock.almacen', 'almacen');
 
   if (nombre) {
@@ -114,24 +112,25 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     query.andWhere('producto.barcode = :barcode', { barcode });
   }
 
-  if (categoriaId) {
-    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId });
+  if (!isNaN(Number(categoriaId))) {
+    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: Number(categoriaId) });
   }
 
-  if (unidadId) {
-    query.andWhere('producto.unidad_id = :unidadId', { unidadId });
+  if (!isNaN(Number(unidadId))) {
+    query.andWhere('producto.unidad_id = :unidadId', { unidadId: Number(unidadId) });
   }
 
-  if (conStock === true) {
+  if (conStock === true || conStock === 'true' as any) {
     query.andWhere('stock.cantidad > 0');
   }
 
-  if (almacenId) {
-    query.andWhere('stock.almacen_id = :almacenId', { almacenId });
+  if (!isNaN(Number(almacenId))) {
+    query.andWhere('stock.almacen_id = :almacenId', { almacenId: Number(almacenId) });
   }
 
   return query.getMany();
 }
+
 
 
   
