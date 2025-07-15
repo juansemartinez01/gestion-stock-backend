@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Producto } from './producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
+import { BuscarProductoDto } from './dto/buscar-producto.dto';
 
 @Injectable()
 export class ProductoService {
@@ -79,4 +80,59 @@ export class ProductoService {
     if (!p) throw new NotFoundException(`No existe producto con barcode ${barcode}`);
     return p;
   }
+
+
+async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
+  const {
+    nombre,
+    sku,
+    barcode,
+    categoriaId,
+    unidadId,
+    conStock,
+    almacenId,
+  } = filtros;
+
+  const query = this.repo.createQueryBuilder('producto')
+    .leftJoinAndSelect('producto.unidad', 'unidad')
+    .leftJoinAndSelect('producto.categoria', 'categoria')
+    .leftJoinAndSelect('producto.compras', 'compras') // opcional
+    .leftJoinAndSelect('stock_actual', 'stock',
+      'stock.producto_id = producto.id'
+    )
+    .leftJoinAndSelect('stock.almacen', 'almacen');
+
+  if (nombre) {
+    query.andWhere('producto.nombre ILIKE :nombre', { nombre: `%${nombre}%` });
+  }
+
+  if (sku) {
+    query.andWhere('producto.sku = :sku', { sku });
+  }
+
+  if (barcode) {
+    query.andWhere('producto.barcode = :barcode', { barcode });
+  }
+
+  if (categoriaId) {
+    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId });
+  }
+
+  if (unidadId) {
+    query.andWhere('producto.unidad_id = :unidadId', { unidadId });
+  }
+
+  if (conStock === true) {
+    query.andWhere('stock.cantidad > 0');
+  }
+
+  if (almacenId) {
+    query.andWhere('stock.almacen_id = :almacenId', { almacenId });
+  }
+
+  return query.getMany();
+}
+
+
+  
 }

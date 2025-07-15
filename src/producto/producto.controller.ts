@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
 import { ProductoService } from './producto.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { Producto } from './producto.entity';
+import { BuscarProductoDto } from './dto/buscar-producto.dto';
 
 @Controller('productos')
 export class ProductoController {
@@ -38,4 +39,10 @@ export class ProductoController {
   findByBarcode(@Param('code') code: string) {
     return this.service.findByBarcode(code);
   }
+
+  @Get('buscar')
+buscar(@Query() filtros: BuscarProductoDto) {
+  return this.service.buscarConFiltros(filtros);
+}
+
 }
