@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Producto } from './producto.entity';
@@ -54,13 +54,23 @@ export class ProductoService {
   }
 
   async findOne(id: number): Promise<Producto> {
-    const prod = await this.repo.findOne({
-      where: { id },
-      relations: ['unidad', 'categoria'],
-    });
-    if (!prod) throw new NotFoundException(`Producto ${id} no encontrado`);
-    return prod;
+  const idParsed = Number(id);
+  if (!Number.isInteger(idParsed)) {
+    throw new BadRequestException(`ID inválido para producto: ${id}`);
   }
+
+  const prod = await this.repo.findOne({
+    where: { id: idParsed },
+    relations: ['unidad', 'categoria'],
+  });
+
+  if (!prod) {
+    throw new NotFoundException(`Producto ${idParsed} no encontrado`);
+  }
+
+  return prod;
+}
+
 
   
 
