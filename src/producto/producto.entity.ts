@@ -52,4 +52,8 @@ export class Producto {
 
       @OneToMany(() => StockActual, stock => stock.producto)
   stock: StockActual[];
+
+  @Column({ type: 'boolean', default: true })
+activo: boolean;
+
 }

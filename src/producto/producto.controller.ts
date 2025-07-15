@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException } from '@nestjs/common';
 import { ProductoService } from './producto.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -30,9 +30,14 @@ export class ProductoController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string): Promise<void> {
-    return this.service.remove(+id);
+async borrarLogico(@Param('id') id: string) {
+  const parsedId = parseInt(id, 10);
+  if (isNaN(parsedId)) {
+    throw new BadRequestException('ID inválido');
   }
+  return this.service.borrarLogicamente(parsedId);
+}
+
 
   // GET /productos/barcode/:code
   @Get('barcode/:code')

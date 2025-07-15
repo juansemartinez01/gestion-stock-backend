@@ -1,19 +1,32 @@
-import { Type } from 'class-transformer';
+// src/producto/dto/buscar-producto.dto.ts
+import { IsOptional, IsString, IsNumberString } from 'class-validator';
 
 export class BuscarProductoDto {
+  @IsOptional()
+  @IsString()
   nombre?: string;
+
+  @IsOptional()
+  @IsString()
   sku?: string;
+
+  @IsOptional()
+  @IsString()
   barcode?: string;
 
-  @Type(() => Number)
-  categoriaId?: number;
+  @IsOptional()
+  @IsNumberString()
+  categoriaId?: string;
 
-  @Type(() => Number)
-  unidadId?: number;
+  @IsOptional()
+  @IsNumberString()
+  unidadId?: string;
 
-  @Type(() => Boolean)
-  conStock?: boolean;
+  @IsOptional()
+  @IsNumberString()
+  almacenId?: string;
 
-  @Type(() => Number)
-  almacenId?: number;
+  @IsOptional()
+  @IsString()
+  conStock?: string; // se interpreta como booleano en el service
 }

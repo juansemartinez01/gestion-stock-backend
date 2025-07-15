@@ -5,6 +5,7 @@ import { Producto } from './producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
+import { StockActual } from 'src/stock-actual/stock-actual.entity';
 
 @Injectable()
 export class ProductoService {
@@ -98,22 +99,14 @@ export class ProductoService {
 
 
 async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
-  const {
-    nombre,
-    sku,
-    barcode,
-    categoriaId,
-    unidadId,
-    conStock,
-    almacenId,
-  } = filtros;
+  const { nombre, sku, barcode, categoriaId, unidadId, conStock, almacenId } = filtros;
 
   const query = this.repo.createQueryBuilder('producto')
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
-    .leftJoinAndSelect('producto.compras', 'compras')
     .leftJoinAndSelect('producto.stock', 'stock')
-    .leftJoinAndSelect('stock.almacen', 'almacen');
+    .leftJoinAndSelect('stock.almacen', 'almacen')
+    .where('producto.activo = true'); // si usás borrado lógico
 
   if (nombre) {
     query.andWhere('producto.nombre ILIKE :nombre', { nombre: `%${nombre}%` });
@@ -127,36 +120,33 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     query.andWhere('producto.barcode = :barcode', { barcode });
   }
 
-  const categoriaIdParsed = parseInt(categoriaId as any, 10);
-  if (!isNaN(categoriaIdParsed)) {
-    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: categoriaIdParsed });
+  if (categoriaId !== undefined && !isNaN(parseInt(categoriaId))) {
+    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: parseInt(categoriaId) });
   }
 
-  const unidadIdParsed = parseInt(unidadId as any, 10);
-  if (!isNaN(unidadIdParsed)) {
-    query.andWhere('producto.unidad_id = :unidadId', { unidadId: unidadIdParsed });
+  if (unidadId !== undefined && !isNaN(parseInt(unidadId))) {
+    query.andWhere('producto.unidad_id = :unidadId', { unidadId: parseInt(unidadId) });
   }
 
-  const almacenIdParsed = parseInt(almacenId as any, 10);
-  const conStockBool = conStock === true || (typeof conStock === 'string' && conStock === 'true');
+  if (almacenId !== undefined && !isNaN(parseInt(almacenId))) {
+    query.andWhere('stock.almacen_id = :almacenId', { almacenId: parseInt(almacenId) });
+  }
 
-  if (!isNaN(almacenIdParsed)) {
-    query.andWhere('stock.almacen_id = :almacenId', { almacenId: almacenIdParsed });
-
-    if (conStockBool) {
-      query.andWhere('stock.cantidad > 0');
-    }
-  } else if (conStockBool) {
-    // Si se pidió conStock pero sin almacén específico, buscamos que exista stock positivo en cualquiera
+  const conStockBool = conStock === 'true';
+  if (conStockBool) {
     query.andWhere('stock.cantidad > 0');
   }
 
   return query.getMany();
 }
 
-
-
-
-
   
+
+
+async borrarLogicamente(id: number): Promise<Producto> {
+  const producto = await this.findOne(id);
+  producto.activo = false;
+  return this.repo.save(producto);
+}
+
 }
