@@ -107,7 +107,7 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .leftJoinAndSelect('producto.compras', 'compras')
-    .leftJoinAndSelect('stock_actual', 'stock', 'stock.producto_id = producto.id')
+    .leftJoinAndSelect('producto.stock', 'stock')
     .leftJoinAndSelect('stock.almacen', 'almacen');
 
   if (nombre) {
@@ -133,17 +133,22 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
   }
 
   const almacenIdParsed = parseInt(almacenId as any, 10);
+  const conStockBool = conStock === true || (typeof conStock === 'string' && conStock === 'true');
+
   if (!isNaN(almacenIdParsed)) {
     query.andWhere('stock.almacen_id = :almacenId', { almacenId: almacenIdParsed });
-  }
 
-  const conStockBool = conStock === true || (typeof conStock === 'string' && conStock === 'true');
-  if (conStockBool) {
+    if (conStockBool) {
+      query.andWhere('stock.cantidad > 0');
+    }
+  } else if (conStockBool) {
+    // Si se pidió conStock pero sin almacén específico, buscamos que exista stock positivo en cualquiera
     query.andWhere('stock.cantidad > 0');
   }
 
   return query.getMany();
 }
+
 
 
 

@@ -3,6 +3,7 @@ import { Unidad } from '../unidad/unidad.entity';
 import { Categoria } from '../categoria/categoria.entity';
 import { Proveedor } from '../proveedor/proveedor.entity';
 import { OrdenCompraItem } from '../orden-compra/orden-compra-item.entity';
+import { StockActual } from 'src/stock-actual/stock-actual.entity';
 
 @Entity('producto')
 export class Producto {
@@ -48,4 +49,7 @@ export class Producto {
 
    @OneToMany(() => OrdenCompraItem, item => item.producto)
     compras: OrdenCompraItem[];
+
+      @OneToMany(() => StockActual, stock => stock.producto)
+  stock: StockActual[];
 }
