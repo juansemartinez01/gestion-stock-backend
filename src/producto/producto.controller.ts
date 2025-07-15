@@ -9,6 +9,10 @@ import { BuscarProductoDto } from './dto/buscar-producto.dto';
 export class ProductoController {
   constructor(private readonly service: ProductoService) {}
 
+  @Get('buscar')
+buscar(@Query() filtros: BuscarProductoDto) {
+  return this.service.buscarConFiltros(filtros);
+}
   @Get()
   getAll(): Promise<Producto[]> {
     return this.service.findAll();
@@ -45,9 +49,6 @@ async borrarLogico(@Param('id') id: string) {
     return this.service.findByBarcode(code);
   }
 
-  @Get('buscar')
-buscar(@Query() filtros: BuscarProductoDto) {
-  return this.service.buscarConFiltros(filtros);
-}
+  
 
 }
