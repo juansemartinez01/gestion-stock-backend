@@ -105,7 +105,7 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .leftJoinAndSelect('producto.stock', 'stock')
-    .leftJoinAndSelect('stock.almacen', 'almacen')
+    .leftJoinAndMapOne('stock.almacen', 'stock.almacen', 'almacen')
     .where('producto.activo = true'); // si usás borrado lógico
 
   if (nombre) {
