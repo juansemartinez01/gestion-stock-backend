@@ -16,27 +16,44 @@ import { AuthModule } from './auth/auth.module';
 import { UsuarioModule } from './usuario/usuario.module';
 import { RoleModule } from './role/role.module';
 import { UsuarioRolModule } from './usuario-rol/usuario-rol.module';
-import { Or } from 'typeorm';
-import { OrdenCompra } from './orden-compra/orden-compra.entity';
 import { OrdenCompraModule } from './orden-compra/orden-compra.module';
-import { Promocion } from './promocion/promocion.entity';
 import { PromocionModule } from './promocion/promocion.module';
 import { IngresoVentaModule } from './ingreso/ingreso-venta.module';
 import { ExtraccionIngresoModule } from './extraccion/extraccion-ingreso.module';
 import { FacturaModule } from './factura/factura.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-  type: 'postgres',
-  host: process.env.DB_HOST,
-  port: +(process.env.DB_PORT || 5432),
-  username: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  autoLoadEntities: true,
-  synchronize: true,
-}),
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async () => {
+        const databaseUrl = process.env.DATABASE_URL;
+
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            autoLoadEntities: true,
+            synchronize: true, // ⚠️ Cambialo a false en prod real
+            ssl: {
+              rejectUnauthorized: false,
+            },
+          };
+        }
+
+        return {
+          type: 'postgres',
+          host: process.env.DB_HOST,
+          port: +(process.env.DB_PORT || 5432),
+          username: process.env.DB_USER,
+          password: process.env.DB_PASS,
+          database: process.env.DB_NAME,
+          autoLoadEntities: true,
+          synchronize: true, // ⚠️ Cambialo a false si querés seguridad en producción local
+        };
+      },
+    }),
     CategoriaModule,
     ProveedorModule,
     AlmacenModule,
@@ -60,6 +77,3 @@ import { FacturaModule } from './factura/factura.module';
   providers: [AppService],
 })
 export class AppModule {}
-
-// Fuerza build completo con todos los módulos
-
