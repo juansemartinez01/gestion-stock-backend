@@ -22,6 +22,7 @@ import { IngresoVentaModule } from './ingreso/ingreso-venta.module';
 import { ExtraccionIngresoModule } from './extraccion/extraccion-ingreso.module';
 import { FacturaModule } from './factura/factura.module';
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
