@@ -16,6 +16,8 @@ import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 import { Almacen } from 'src/almacen/almacen.entity';
 import { UpdateEstadoVentaDto } from './dto/update-estado-venta.dto';
 import { CreateVentaMixtaDto } from './dto/create-venta-mixta.dto';
+import moment from 'moment-timezone';
+
 
 @Injectable()
 export class VentaService {
@@ -84,6 +86,7 @@ export class VentaService {
       items,
       total: Number(total.toFixed(2)),
       estado: 'CONFIRMADA',
+      fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
     });
     const saved = await this.repo.save(venta);
 
@@ -423,6 +426,7 @@ async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
     items,
     total: Number(total.toFixed(2)),
     estado: 'CONFIRMADA',
+    fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
   });
 
   const saved = await this.repo.save(venta);

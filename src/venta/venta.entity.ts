@@ -9,8 +9,9 @@ export class Venta {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   fecha: Date;
+
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   total: number;
