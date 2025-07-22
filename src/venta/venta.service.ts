@@ -16,6 +16,8 @@ import { EstadisticasVentasDto } from './dto/estadisticas-ventas.dto';
 import { Almacen } from 'src/almacen/almacen.entity';
 import { UpdateEstadoVentaDto } from './dto/update-estado-venta.dto';
 import { CreateVentaMixtaDto } from './dto/create-venta-mixta.dto';
+import moment from 'moment-timezone';
+
 
 @Injectable()
 export class VentaService {
@@ -84,6 +86,7 @@ export class VentaService {
       items,
       total: Number(total.toFixed(2)),
       estado: 'CONFIRMADA',
+      fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
     });
     const saved = await this.repo.save(venta);
 
@@ -197,12 +200,15 @@ export class VentaService {
     .take(limit);
 
   if (fechaDesde) {
-    query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
-  }
+  const fechaDesdeUtc = moment.tz(fechaDesde, 'America/Argentina/Buenos_Aires').startOf('day').utc().toDate();
+  query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: fechaDesdeUtc });
+}
 
-  if (fechaHasta) {
-    query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
-  }
+if (fechaHasta) {
+  const fechaHastaUtc = moment.tz(fechaHasta, 'America/Argentina/Buenos_Aires').endOf('day').utc().toDate();
+  query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: fechaHastaUtc });
+}
+
 
   if (usuarioId) {
     query.andWhere('usuario.id = :usuarioId', { usuarioId });
@@ -267,8 +273,15 @@ async getVentaCompleta(id: number): Promise<Venta> {
 async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
     const { fechaDesde, fechaHasta } = filtros;
     const condiciones = [];
-    if (fechaDesde) condiciones.push(`v.fecha >= '${fechaDesde}'`);
-    if (fechaHasta) condiciones.push(`v.fecha <= '${fechaHasta}'`);
+    const fechaDesdeUtc = fechaDesde
+  ? moment.tz(fechaDesde, 'America/Argentina/Buenos_Aires').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss')
+  : null;
+const fechaHastaUtc = fechaHasta
+  ? moment.tz(fechaHasta, 'America/Argentina/Buenos_Aires').endOf('day').utc().format('YYYY-MM-DD HH:mm:ss')
+  : null;
+
+if (fechaDesdeUtc) condiciones.push(`v.fecha >= '${fechaDesdeUtc}'`);
+if (fechaHastaUtc) condiciones.push(`v.fecha <= '${fechaHastaUtc}'`);
     const whereClause = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
 
     // Ingresos totales y total ventas
@@ -423,6 +436,7 @@ async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
     items,
     total: Number(total.toFixed(2)),
     estado: 'CONFIRMADA',
+    fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
   });
 
   const saved = await this.repo.save(venta);
