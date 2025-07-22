@@ -200,12 +200,15 @@ export class VentaService {
     .take(limit);
 
   if (fechaDesde) {
-    query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: new Date(fechaDesde) });
-  }
+  const fechaDesdeUtc = moment.tz(fechaDesde, 'America/Argentina/Buenos_Aires').startOf('day').utc().toDate();
+  query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: fechaDesdeUtc });
+}
 
-  if (fechaHasta) {
-    query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: new Date(fechaHasta) });
-  }
+if (fechaHasta) {
+  const fechaHastaUtc = moment.tz(fechaHasta, 'America/Argentina/Buenos_Aires').endOf('day').utc().toDate();
+  query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: fechaHastaUtc });
+}
+
 
   if (usuarioId) {
     query.andWhere('usuario.id = :usuarioId', { usuarioId });
