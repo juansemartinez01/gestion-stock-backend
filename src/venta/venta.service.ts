@@ -273,8 +273,15 @@ async getVentaCompleta(id: number): Promise<Venta> {
 async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
     const { fechaDesde, fechaHasta } = filtros;
     const condiciones = [];
-    if (fechaDesde) condiciones.push(`v.fecha >= '${fechaDesde}'`);
-    if (fechaHasta) condiciones.push(`v.fecha <= '${fechaHasta}'`);
+    const fechaDesdeUtc = fechaDesde
+  ? moment.tz(fechaDesde, 'America/Argentina/Buenos_Aires').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss')
+  : null;
+const fechaHastaUtc = fechaHasta
+  ? moment.tz(fechaHasta, 'America/Argentina/Buenos_Aires').endOf('day').utc().format('YYYY-MM-DD HH:mm:ss')
+  : null;
+
+if (fechaDesdeUtc) condiciones.push(`v.fecha >= '${fechaDesdeUtc}'`);
+if (fechaHastaUtc) condiciones.push(`v.fecha <= '${fechaHastaUtc}'`);
     const whereClause = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
 
     // Ingresos totales y total ventas
