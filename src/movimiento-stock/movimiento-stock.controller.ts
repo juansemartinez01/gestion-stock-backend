@@ -33,6 +33,10 @@ async getAllConFiltros(
   });
 }
 
+  @Get('insumos')
+  async getInsumos() {
+    return this.service.findAllInsumos();
+  }
 
   @Get(':id')
   getOne(@Param('id') id: string): Promise<MovimientoStock> {
@@ -56,4 +60,7 @@ async getAllConFiltros(
   remove(@Param('id') id: string): Promise<void> {
     return this.service.remove(+id);
   }
+
+  
+
 }
