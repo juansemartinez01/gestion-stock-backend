@@ -27,4 +27,7 @@ export class Promocion {
 
   @OneToMany(() => PromocionProducto, pp => pp.promocion, { cascade: true })
   productos: PromocionProducto[];
+
+  @Column({ default: true })
+  activo: boolean;
 }

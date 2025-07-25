@@ -6,6 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { Reflector }    from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 
 import 'reflect-metadata';
 
@@ -22,6 +23,13 @@ async function bootstrap() {
   const reflector = app.get(Reflector);
   // <— Aquí aplicamos el guard de JWT a todo, pero respetando @Public()
 
+  app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true, // elimina propiedades no definidas en el DTO
+    forbidNonWhitelisted: true, // lanza error si hay propiedades no permitidas
+    transform: true // transforma tipos (ej: string a number)
+  })
+);
   
   app.useGlobalGuards(new JwtAuthGuard(reflector));
   //app.use(cookieParser());

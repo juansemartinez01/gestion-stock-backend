@@ -39,20 +39,47 @@ export class ProductoService {
   // ────────────────────────────────────────────────────────────────────────────
 
   async create(dto: CreateProductoDto): Promise<Producto> {
-    // Si el usuario no envió SKU, lo generamos automáticamente
-    if (!dto.sku) {
-      dto.sku = this.generateSku(dto.nombre);
-    }
-
-    // Verificar duplicados por SKU
-    const existing = await this.repo.findOne({ where: { sku: dto.sku } });
-    if (existing) {
-      throw new ConflictException(`El producto con SKU "${dto.sku}" ya existe.`);
-    }
-
-    const prod = this.repo.create(dto);
-    return this.repo.save(prod);
+  // 🔁 Generar SKU si no viene
+  if (!dto.sku) {
+    dto.sku = this.generateSku(dto.nombre);
   }
+
+  // 🔎 Verificar duplicado por SKU
+  const existingSku = await this.repo.findOne({ where: { sku: dto.sku } });
+  if (existingSku) {
+    throw new ConflictException(`El producto con SKU "${dto.sku}" ya existe.`);
+  }
+
+  // 🔍 Verificar si existe un producto con el mismo código de barras
+  if (dto.barcode) {
+    const existingBarcode = await this.repo.findOne({ where: { barcode: dto.barcode } });
+
+    if (existingBarcode) {
+      if (existingBarcode.activo) {
+        throw new ConflictException(
+          `Ya existe un producto activo con ese código de barras. Nombre: "${existingBarcode.nombre}".`
+        );
+      } else {
+        // 🛠️ Si existe pero está inactivo, lo actualizamos
+        existingBarcode.nombre = dto.nombre;
+        existingBarcode.descripcion = dto.descripcion;
+        existingBarcode.unidad_id = dto.unidad_id;
+        existingBarcode.categoria_id = dto.categoria_id;
+        existingBarcode.sku = dto.sku;
+        existingBarcode.precioBase = dto.precioBase;
+        existingBarcode.activo = true;
+        existingBarcode.updated_at = new Date();
+
+        return this.repo.save(existingBarcode);
+      }
+    }
+  }
+
+  // ✅ Crear producto normalmente
+  const nuevo = this.repo.create(dto);
+  return this.repo.save(nuevo);
+}
+
 
   async findOne(id: number): Promise<Producto> {
   const idParsed = Number(id);

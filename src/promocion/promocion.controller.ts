@@ -12,6 +12,11 @@ export class PromocionController {
     return this.service.create(dto);
   }
 
+  @Get('activas')
+  getActivas() {
+    return this.service.findActivas();
+  }
+
   @Get('codigo/:codigo')
     findByCodigo(@Param('codigo') codigo: string) {
     return this.service.findByCodigo(codigo);
@@ -38,5 +43,11 @@ export class PromocionController {
   update(@Param('id') id: string, @Body() dto: UpdatePromocionDto) {
     return this.service.update(+id, dto);
   }
+
+  @Delete(':id/logico')
+  async borrarLogico(@Param('id') id: string) {
+    return this.service.borrarLogicamente(+id);
+  }
+
 
 }
