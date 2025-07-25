@@ -197,4 +197,5 @@ async cancelarInsumo(dto: CancelarInsumoDto): Promise<StockActual> {
 }
 
 
+
 }

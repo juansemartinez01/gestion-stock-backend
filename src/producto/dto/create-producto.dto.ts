@@ -2,9 +2,9 @@ import { IsString, IsNotEmpty, MaxLength, IsOptional, IsInt, IsNumber } from 'cl
 
 export class CreateProductoDto {
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(50)
-  sku: string;
+  sku?: string;
 
   @IsString()
   @IsNotEmpty()
