@@ -142,7 +142,7 @@ export class MovimientoStockService {
   async findAllInsumos() {
   return this.repo.find({
     where: { tipo: 'insumo' },
-    relations: ['producto', 'origen_almacen'], // opcional: incluir relaciones útiles
+    relations: ['producto', 'almacenOrigen'], // opcional: incluir relaciones útiles
     order: { fecha: 'DESC' } // si tenés un campo de fecha
   });
 }
