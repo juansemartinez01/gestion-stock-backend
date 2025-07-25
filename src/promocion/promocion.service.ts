@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Promocion } from './promocion.entity';
@@ -17,19 +17,43 @@ export class PromocionService {
   ) {}
 
   async create(dto: CreatePromocionDto): Promise<Promocion> {
-    const promocion = this.promoRepo.create({
-      codigo: dto.codigo,
-      precioPromo: dto.precioPromo,
-      productos: dto.productos.map(p => {
-        const pp = new PromocionProducto();
-        pp.producto = { id: p.productoId } as any;
-        pp.cantidad = p.cantidad;
-        return pp;
-      }),
-    });
+  const existente = await this.promoRepo.findOne({
+    where: { codigo: dto.codigo },
+    relations: ['productos', 'productos.producto'],
+  });
 
-    return this.promoRepo.save(promocion);
+  if (existente) {
+    if (existente.activo) {
+      const productos = existente.productos.map(p => ({
+        id: p.producto.id,
+        nombre: p.producto.nombre,
+        cantidad: p.cantidad,
+      }));
+
+      throw new ConflictException({
+        mensaje: `Ya existe una promoción ACTIVA con el código "${dto.codigo}"`,
+        productos,
+      });
+    } else {
+      throw new ConflictException(
+        `El código "${dto.codigo}" pertenece a una promoción INACTIVA. Por favor use otro código.`
+      );
+    }
   }
+
+  const promocion = this.promoRepo.create({
+    codigo: dto.codigo,
+    precioPromo: dto.precioPromo,
+    productos: dto.productos.map(p => {
+      const pp = new PromocionProducto();
+      pp.producto = { id: p.productoId } as any;
+      pp.cantidad = p.cantidad;
+      return pp;
+    }),
+  });
+
+  return this.promoRepo.save(promocion);
+}
 
   findAll(): Promise<Promocion[]> {
     return this.promoRepo.find({ relations: ['productos'] });
@@ -102,6 +126,24 @@ async update(id: number, dto: UpdatePromocionDto): Promise<Promocion>
   });
 
   return this.promoRepo.save(promocion);
+}
+
+async findActivas(): Promise<Promocion[]> {
+  return this.promoRepo.find({
+    where: { activo: true },
+    relations: ['productos', 'productos.producto'],
+  });
+}
+
+async borrarLogicamente(id: number): Promise<{ message: string }> {
+  const promocion = await this.promoRepo.findOne({ where: { id } });
+  if (!promocion) {
+    throw new NotFoundException(`No se encontró ninguna promoción con id ${id}`);
+  }
+
+  promocion.activo = false;
+  await this.promoRepo.save(promocion);
+  return { message: `Promoción con id ${id} desactivada correctamente` };
 }
 
 
