@@ -23,13 +23,7 @@ async function bootstrap() {
   const reflector = app.get(Reflector);
   // <— Aquí aplicamos el guard de JWT a todo, pero respetando @Public()
 
-  app.useGlobalPipes(
-  new ValidationPipe({
-    whitelist: true, // elimina propiedades no definidas en el DTO
-    forbidNonWhitelisted: true, // lanza error si hay propiedades no permitidas
-    transform: true // transforma tipos (ej: string a number)
-  })
-);
+  
   
   app.useGlobalGuards(new JwtAuthGuard(reflector));
   //app.use(cookieParser());
