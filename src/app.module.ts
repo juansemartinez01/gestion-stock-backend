@@ -29,14 +29,12 @@ import { FacturaModule } from './factura/factura.module';
   imports: [ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
   type: 'postgres',
-  host: process.env.DB_HOST,
-  port: +(process.env.DB_PORT || 5432),
-  username: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  url: process.env.DATABASE_URL, // ✅ Usar DATABASE_URL de Railway
   autoLoadEntities: true,
   synchronize: true,
+  ssl: { rejectUnauthorized: false }, // ✅ Requerido por Railway
 }),
+
     CategoriaModule,
     ProveedorModule,
     AlmacenModule,
