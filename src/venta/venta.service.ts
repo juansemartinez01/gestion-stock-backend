@@ -56,25 +56,36 @@ export class VentaService {
 
     // 2) Procesar promociones
     if (dto.promociones) {
-      for (const promoItem of dto.promociones) {
-        const promo = await this.promoService.getPromocionById(promoItem.promocionId);
-        if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
+  for (const promoItem of dto.promociones) {
+    const promo = await this.promoService.getPromocionById(promoItem.promocionId);
+    if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
 
-        const subtotal = Number((promo.precioPromo * promoItem.cantidad).toFixed(2));
-        total += subtotal;
+    // 🔹 Subtotal total de la promo
+    const subtotalPromo = Number((promo.precioPromo * promoItem.cantidad).toFixed(2));
+    total += subtotalPromo;
 
-        for (const p of promo.productos) {
-          const ventaItem = new VentaItem();
-          ventaItem.producto = p.producto;
-          ventaItem.cantidad = p.cantidad * promoItem.cantidad;
-          ventaItem.precioUnitario = 0; // o podés calcular un proporcional si querés
-          ventaItem.subtotal = 0; // no suma por separado
-          items.push(ventaItem);
-        }
+    // ✅ 1) Crear un ítem especial que represente la promoción
+    const promoVentaItem = new VentaItem();
+    promoVentaItem.producto = null; // ❗ No hay producto asociado
+    promoVentaItem.cantidad = promoItem.cantidad;
+    promoVentaItem.precioUnitario = promo.precioPromo;
+    promoVentaItem.subtotal = subtotalPromo;
+    
+    items.push(promoVentaItem);
 
-        // Podés agregar un "ítem visual" representando la promo como un producto virtual si querés.
-      }
+    // ✅ 2) Registrar productos reales incluidos en la promo (precio 0)
+    for (const p of promo.productos) {
+      const productoItem = new VentaItem();
+      productoItem.producto = p.producto;
+      productoItem.cantidad = p.cantidad * promoItem.cantidad;
+      productoItem.precioUnitario = 0;
+      productoItem.subtotal = 0;
+      
+      items.push(productoItem);
     }
+  }
+}
+
 
 
     const almacen = await this.dataSource.getRepository(Almacen).findOneBy({ id: dto.almacenId });
@@ -99,15 +110,17 @@ export class VentaService {
 
     // 4) Actualizar stock y movimientos
     for (const it of items) {
-      await this.stockService.changeStock(it.producto.id, dto.almacenId, -it.cantidad);
-      await this.movService.create({
-        producto_id: it.producto.id,
-        origen_almacen: dto.almacenId,
-        destino_almacen: undefined,
-        cantidad: it.cantidad,
-        tipo: 'salida',
-        motivo: `Venta #${saved.id}`,
-      });
+      if (it.producto) {
+        await this.stockService.changeStock(it.producto.id, dto.almacenId, -it.cantidad);
+        await this.movService.create({
+          producto_id: it.producto.id,
+          origen_almacen: dto.almacenId,
+          destino_almacen: undefined,
+          cantidad: it.cantidad,
+          tipo: 'salida',
+          motivo: `Venta #${saved.id}`,
+        });
+      }
     }
 
     return saved;
@@ -409,24 +422,35 @@ async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
   }
 
   if (dto.promociones) {
-    for (const promoItem of dto.promociones) {
-      const promo = await this.promoService.getPromocionById(promoItem.promocionId);
-      if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
+  for (const promoItem of dto.promociones) {
+    const promo = await this.promoService.getPromocionById(promoItem.promocionId);
+    if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
 
-      const subtotal = Number((promo.precioPromo * promoItem.cantidad).toFixed(2));
-      total += subtotal;
+    // 🔹 Subtotal total de la promo
+    const subtotalPromo = Number((promo.precioPromo * promoItem.cantidad).toFixed(2));
+    total += subtotalPromo;
 
-      for (const p of promo.productos) {
-        const ventaItem = new VentaItem();
-        ventaItem.producto = p.producto;
-        ventaItem.cantidad = p.cantidad * promoItem.cantidad;
-        ventaItem.precioUnitario = 0;
-        ventaItem.subtotal = 0;
-        items.push(ventaItem);
-      }
+    // ✅ 1) Crear un ítem especial que represente la promoción
+    const promoVentaItem = new VentaItem();
+    promoVentaItem.producto = null; // ❗ No hay producto asociado
+    promoVentaItem.cantidad = promoItem.cantidad;
+    promoVentaItem.precioUnitario = promo.precioPromo;
+    promoVentaItem.subtotal = subtotalPromo;
+    
+    items.push(promoVentaItem);
+
+    // ✅ 2) Registrar productos reales incluidos en la promo (precio 0)
+    for (const p of promo.productos) {
+      const productoItem = new VentaItem();
+      productoItem.producto = p.producto;
+      productoItem.cantidad = p.cantidad * promoItem.cantidad;
+      productoItem.precioUnitario = 0;
+      productoItem.subtotal = 0;
+      
+      items.push(productoItem);
     }
   }
-
+}
   const almacen = await this.dataSource.getRepository(Almacen).findOneBy({ id: dto.almacenId });
   if (!almacen) throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
 
@@ -457,15 +481,17 @@ async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
 
   // Descontar stock y registrar movimientos
   for (const it of items) {
-    await this.stockService.changeStock(it.producto.id, dto.almacenId, -it.cantidad);
-    await this.movService.create({
-      producto_id: it.producto.id,
-      origen_almacen: dto.almacenId,
-      destino_almacen: undefined,
-      cantidad: it.cantidad,
-      tipo: 'salida',
-      motivo: `Venta #${saved.id}`,
-    });
+    if (it.producto) {
+      await this.stockService.changeStock(it.producto.id, dto.almacenId, -it.cantidad);
+      await this.movService.create({
+        producto_id: it.producto.id,
+        origen_almacen: dto.almacenId,
+        destino_almacen: undefined,
+        cantidad: it.cantidad,
+        tipo: 'salida',
+        motivo: `Venta #${saved.id}`,
+      });
+    }
   }
 
   return saved;

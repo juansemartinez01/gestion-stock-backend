@@ -11,9 +11,9 @@ export class VentaItem {
   @JoinColumn({ name: 'venta_id' })
   venta: Venta;
 
-  @ManyToOne(() => Producto, { eager: true })
+  @ManyToOne(() => Producto, { eager: true,nullable: true })
   @JoinColumn({ name: 'producto_id' })
-  producto: Producto;
+  producto: Producto | null;
 
   @Column({ type: 'integer' })
   cantidad: number;
