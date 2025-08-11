@@ -7,6 +7,7 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
 
+
 @Injectable()
 export class ProductoService {
   constructor(
@@ -38,47 +39,89 @@ export class ProductoService {
   }
   // ────────────────────────────────────────────────────────────────────────────
 
-  async create(dto: CreateProductoDto): Promise<Producto> {
-  // 🔁 Generar SKU si no viene
-  if (!dto.sku) {
-    dto.sku = this.generateSku(dto.nombre);
-  }
+  
 
-  // 🔎 Verificar duplicado por SKU
-  const existingSku = await this.repo.findOne({ where: { sku: dto.sku } });
-  if (existingSku) {
+
+async create(dto: CreateProductoDto): Promise<Producto> {
+  // 🔧 Normalización básica
+  dto.nombre = dto.nombre?.trim();
+  dto.sku = (dto.sku?.trim() || this.generateSku(dto.nombre)).toUpperCase();
+  dto.descripcion = dto.descripcion?.trim();
+  dto.barcode = dto.barcode?.trim();
+
+  // 🔎 Lookups iniciales
+  const [existingSku, existingBarcode] = await Promise.all([
+    this.repo.findOne({ where: { sku: dto.sku } }),
+    dto.barcode ? this.repo.findOne({ where: { barcode: dto.barcode } }) : Promise.resolve(null),
+  ]);
+
+  // 🧩 Si hay SKU existente y no es el mismo registro del barcode hallado, es conflicto
+  if (existingSku && (!existingBarcode || existingSku.id !== existingBarcode.id)) {
     throw new ConflictException(`El producto con SKU "${dto.sku}" ya existe.`);
   }
 
-  // 🔍 Verificar si existe un producto con el mismo código de barras
-  if (dto.barcode) {
-    const existingBarcode = await this.repo.findOne({ where: { barcode: dto.barcode } });
+  // 🔍 Si existe el barcode
+  if (existingBarcode) {
+    if (existingBarcode.activo) {
+      // Ya hay uno activo con ese código de barras
+      throw new ConflictException(
+        `Ya existe un producto activo con ese código de barras. (ID ${existingBarcode.id}, Nombre: "${existingBarcode.nombre}")`
+      );
+    }
 
-    if (existingBarcode) {
-      if (existingBarcode.activo) {
-        throw new ConflictException(
-          `Ya existe un producto activo con ese código de barras. Nombre: "${existingBarcode.nombre}".`
-        );
-      } else {
-        // 🛠️ Si existe pero está inactivo, lo actualizamos
-        existingBarcode.nombre = dto.nombre;
-        existingBarcode.descripcion = dto.descripcion;
-        existingBarcode.unidad_id = dto.unidad_id;
-        existingBarcode.categoria_id = dto.categoria_id;
-        existingBarcode.sku = dto.sku;
-        existingBarcode.precioBase = dto.precioBase;
-        existingBarcode.activo = true;
-        existingBarcode.updated_at = new Date();
+    // ♻️ Reactivar y actualizar SOLO lo que venga en el DTO
+    existingBarcode.nombre = dto.nombre; // requerido
 
-        return this.repo.save(existingBarcode);
+    if (dto.descripcion !== undefined) {
+      existingBarcode.descripcion = dto.descripcion; // puede ser string o undefined
+    }
+
+    // Tenés columnas crudas *_id, así que asignamos IDs directamente
+    if (dto.unidad_id !== undefined) {
+      existingBarcode.unidad_id = dto.unidad_id;
+    }
+    if (dto.categoria_id !== undefined) {
+      existingBarcode.categoria_id = dto.categoria_id;
+    }
+
+    // SKU ya validado arriba para no chocar con terceros
+    if (dto.sku !== undefined) {
+      existingBarcode.sku = dto.sku;
+    }
+
+    if (dto.precioBase !== undefined) {
+      existingBarcode.precioBase = dto.precioBase;
+    }
+
+    // Por si el inactivo tenía barcode nulo y ahora viene uno válido
+    if (dto.barcode !== undefined) {
+      if (dto.barcode !== undefined && dto.barcode !== null) {
+        existingBarcode.barcode = dto.barcode;
       }
     }
+
+    existingBarcode.activo = true; // reactivamos
+    // No seteamos updated_at: lo maneja @UpdateDateColumn
+
+    // Guardamos y devolvemos
+    return this.repo.save(existingBarcode);
   }
 
-  // ✅ Crear producto normalmente
-  const nuevo = this.repo.create(dto);
-  return this.repo.save(nuevo);
+  // ✅ Crear producto normalmente (sin barcode existente)
+  const nuevo = this.repo.create({
+    sku: dto.sku,
+    nombre: dto.nombre,
+    descripcion: dto.descripcion ?? null,
+    unidad_id: dto.unidad_id,
+    categoria_id: dto.categoria_id ?? null,
+    precioBase: dto.precioBase,
+    barcode: dto.barcode ?? null,
+    activo: true,
+  } as Partial<Producto>);
+
+  return this.repo.save(nuevo) as unknown as Promise<Producto>;
 }
+
 
 
   async findOne(id: number): Promise<Producto> {
