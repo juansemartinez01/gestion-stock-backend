@@ -153,7 +153,8 @@ export class GastosService {
       sumQb.andWhere('g.monto <= :maxMonto', { maxMonto });
     }
 
-    const { total } = await sumQb.getRawOne<{ total: string }>();
+    const row = await sumQb.getRawOne<{ total: string } | null>();
+    const totalMontoFiltrado = row?.total ?? '0';
 
     return {
       data,
@@ -161,7 +162,7 @@ export class GastosService {
       limit,
       totalItems,
       totalPages: Math.ceil(totalItems / limit),
-      totalMontoFiltrado: total ?? '0',
+      totalMontoFiltrado: totalMontoFiltrado ?? '0',
     };
   }
 
