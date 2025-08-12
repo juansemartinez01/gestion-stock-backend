@@ -24,6 +24,7 @@ import { PromocionModule } from './promocion/promocion.module';
 import { IngresoVentaModule } from './ingreso/ingreso-venta.module';
 import { ExtraccionIngresoModule } from './extraccion/extraccion-ingreso.module';
 import { FacturaModule } from './factura/factura.module';
+import { GastosModule } from './gastos/gastos.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
@@ -55,6 +56,7 @@ import { FacturaModule } from './factura/factura.module';
     IngresoVentaModule,
     ExtraccionIngresoModule,
     FacturaModule,
+    GastosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
