@@ -22,7 +22,7 @@ export class Producto {
   @Column({ name: 'unidad_id' })
   unidad_id: number;
 
-  @ManyToOne(() => Unidad)
+  @ManyToOne(() => Unidad, { nullable: false })
   @JoinColumn({ name: 'unidad_id' })
   unidad: Unidad;
 

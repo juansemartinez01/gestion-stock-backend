@@ -6,14 +6,26 @@ import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
+import { Unidad } from 'src/unidad/unidad.entity';
 
 @Injectable()
 export class ProductoService {
   constructor(
     @InjectRepository(Producto)
     private readonly repo: Repository<Producto>,
+    @InjectRepository(Unidad)   private readonly unidadRepo: Repository<Unidad>,
   ) {}
 
+
+
+   private esGramos(u: Unidad | null | undefined) {
+    const abbr = u?.abreviatura?.toLowerCase()?.trim();
+    const name = u?.nombre?.toLowerCase()?.trim();
+    return abbr === 'g' || abbr === 'gr' || name === 'gramo' || name?.startsWith('gram');
+  }
+
+
+  
   findAll(): Promise<Producto[]> {
     return this.repo.find({ relations: ['unidad', 'categoria'] });
   }
@@ -39,6 +51,9 @@ export class ProductoService {
   // ────────────────────────────────────────────────────────────────────────────
 
   async create(dto: CreateProductoDto): Promise<Producto> {
+
+    const unidad = await this.unidadRepo.findOne({ where: { id: dto.unidad_id } });
+    if (!unidad) throw new NotFoundException('Unidad no encontrada');
   // 🔁 Generar SKU si no viene
   if (!dto.sku) {
     dto.sku = this.generateSku(dto.nombre);
@@ -76,7 +91,15 @@ export class ProductoService {
   }
 
   // ✅ Crear producto normalmente
-  const nuevo = this.repo.create(dto);
+  const nuevo = this.repo.create({
+      sku: dto.sku,
+      nombre: dto.nombre,
+      descripcion: dto.descripcion,
+      precioBase: dto.precioBase,
+      barcode: dto.barcode,
+      unidad,
+      es_por_gramos: this.esGramos(unidad),
+    });
   return this.repo.save(nuevo);
 }
 
@@ -108,8 +131,31 @@ export class ProductoService {
   
 
   async update(id: number, dto: UpdateProductoDto): Promise<Producto> {
-    await this.repo.update(id, dto);
-    return this.findOne(id);
+
+    let unidad: Unidad | undefined;
+    let es_por_gramos: boolean | undefined;
+
+    if (dto.unidad_id !== undefined) {
+      const unidadResult = await this.unidadRepo.findOne({ where: { id: dto.unidad_id } });
+      if (!unidadResult) throw new NotFoundException('Unidad no encontrada');
+      unidad = unidadResult;
+      es_por_gramos = this.esGramos(unidad);
+    }
+    await this.repo.update(
+      { id },
+      {
+        ...dto,
+        ...(unidad ? { unidad } : {}),
+        ...(es_por_gramos !== undefined ? { es_por_gramos } : {}),
+      } as any,
+    );
+
+    const producto = await this.repo.findOne({ where: { id }, relations: ['unidad'] });
+    if (!producto) {
+      throw new NotFoundException(`Producto ${id} no encontrado`);
+    }
+    return producto;
+  
   }
 
   async remove(id: number): Promise<void> {
