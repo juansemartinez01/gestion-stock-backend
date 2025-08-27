@@ -124,8 +124,15 @@ export class MovimientoStockService {
   }
 
   create(dto: CreateMovimientoStockDto): Promise<MovimientoStock> {
-    const mov = this.repo.create(dto);
-    return this.repo.save(mov);
+    // Convert cantidad_gramos to string if present
+    const fixedDto = {
+      ...dto,
+      cantidad_gramos: dto.cantidad_gramos !== undefined && dto.cantidad_gramos !== null
+        ? String(dto.cantidad_gramos)
+        : undefined,
+    };
+    const mov = this.repo.create(fixedDto);
+    return this.repo.save(mov as MovimientoStock);
   }
 
   async update(id: number, dto: UpdateMovimientoStockDto): Promise<MovimientoStock> {
