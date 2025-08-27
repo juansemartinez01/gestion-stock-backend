@@ -1,18 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DeepPartial, EntityManager, Repository } from 'typeorm';
 import { StockActual } from './stock-actual.entity';
 import { CreateStockActualDto } from './dto/create-stock-actual.dto';
 import { UpdateStockActualDto } from './dto/update-stock-actual.dto';
 import { MovimientoStockService } from 'src/movimiento-stock/movimiento-stock.service';
 import { RegistrarInsumoDto } from './dto/registrar-insumo.dto';
 import { CancelarInsumoDto } from './dto/cancelar-insumo.dto';
+import { Producto } from 'src/producto/producto.entity';
 
 @Injectable()
 export class StockActualService {
   constructor(
     @InjectRepository(StockActual)
     private readonly repo: Repository<StockActual>,
+    @InjectRepository(Producto)
+    private readonly prodRepo: Repository<Producto>,
     private readonly movService: MovimientoStockService,
   ) {}
 
@@ -21,21 +24,35 @@ export class StockActualService {
   }
 
   async registrarEntrada(dto: CreateStockActualDto): Promise<StockActual> {
-  const updated = await this.changeStock(dto.producto_id, dto.almacen_id, dto.cantidad);
+  return this.repo.manager.transaction(async (m) => {
+    const producto = await m.getRepository(Producto).findOne({
+      where: { id: dto.producto_id },
+      select: ['id', 'es_por_gramos'],
+    });
+    if (!producto) throw new NotFoundException(`Producto ${dto.producto_id} no existe`);
 
-  await this.movService.create({
-    producto_id: dto.producto_id,
-    origen_almacen: undefined,
-    destino_almacen: dto.almacen_id,
-    cantidad: dto.cantidad,
-    tipo: 'entrada',
-    motivo: dto.motivo || 'Reposición de stock',
-    proveedor_id: dto.proveedor_id,
-    precioUnitario: dto.precioUnitario,
-    precioTotal: dto.precioTotal,
+    const updated = await this.ajustarStockTx(m, dto.producto_id, dto.almacen_id, {
+      deltaPiezas: !producto.es_por_gramos ? (dto.cantidad ?? 0) : 0,
+      deltaGramos:  producto.es_por_gramos  ? (dto.cantidad_gramos ?? 0) : 0,
+    });
+
+    // ⚠️ Recomendado: extender MovimientoStock para soportar cantidad_gramos
+    await this.movService.create({
+      producto_id: dto.producto_id,
+      origen_almacen: undefined,
+      destino_almacen: dto.almacen_id,
+      cantidad: !producto.es_por_gramos ? dto.cantidad : undefined,
+      // NUEVO si actualizás MovimientoStock:
+      cantidad_gramos: producto.es_por_gramos ? dto.cantidad_gramos : undefined,
+      tipo: 'entrada',
+      motivo: dto.motivo || 'Reposición de stock',
+      proveedor_id: dto.proveedor_id,
+      precioUnitario: dto.precioUnitario,
+      precioTotal: dto.precioTotal,
+    });
+
+    return updated;
   });
-
-  return updated;
 }
 
 
@@ -55,9 +72,22 @@ export class StockActualService {
   }
 
   async create(dto: CreateStockActualDto): Promise<StockActual> {
-    const stock = this.repo.create(dto);
-    return this.repo.save(stock);
-  }
+  // Armamos un payload explícito para una sola fila
+  const payload: DeepPartial<StockActual> = {
+    producto_id: dto.producto_id,
+    almacen_id: dto.almacen_id,
+    // Si viene piezas, usamos piezas; si viene gramos, dejamos piezas en 0.
+    cantidad: dto.cantidad ?? 0,
+    // NUMERIC en PG → string en TypeORM; si no viene, NULL
+    cantidad_gramos:
+      dto.cantidad_gramos !== undefined
+        ? dto.cantidad_gramos.toString()
+        : null,
+  };
+
+  const entity = this.repo.create(payload); // ← create de una sola entidad (no array)
+  return await this.repo.save(entity);      // ← save devuelve StockActual, no array
+}
 
   async update(
     producto_id: number,
@@ -82,120 +112,176 @@ export class StockActualService {
    * @param almacenId  ID del almacén
    * @param delta      Positivo para incrementar, negativo para decrementar
    */
-  async changeStock(
-    productoId: number,
-    almacenId: number,
-    delta: number,
-  ): Promise<StockActual> {
-    // 1) Busca la fila existente
-    const stock = await this.repo.findOne({
-      where: {
-        producto: { id: productoId },
-        almacen: { id: almacenId },
-      },
-    });
+  // REEMPLAZAR changeStock por:
+async changeStock(
+  productoId: number,
+  almacenId: number,
+  opts: { deltaPiezas?: number; deltaGramos?: number },
+): Promise<StockActual> {
+  return this.repo.manager.transaction(async (m) => {
+    return this.ajustarStockTx(m, productoId, almacenId, opts);
+  });
+}
 
-    if (!stock) {
-      throw new NotFoundException(
-        `No existe stock para producto ${productoId} en almacén ${almacenId}`,
-      );
-    }
 
-    // 2) Aplica el cambio y actualiza la fecha
-    stock.cantidad += delta;
-    stock.last_updated = new Date();
-
-    // 3) Guarda y devuelve el registro actualizado
-    return this.repo.save(stock);
-  }
-
-  async getStockByAlmacen(almacenId: number) {
+  // MODIFICAR getStockByAlmacen
+async getStockByAlmacen(almacenId: number) {
   const stockPorAlmacen = await this.repo.find({
     where: { almacen: { id: almacenId } },
     relations: ['producto', 'almacen'],
   });
 
-  const stockTotalPorProductoRaw = await this.repo
-    .createQueryBuilder('stock')
+  // Suma normalizada por producto (pieces → int, grams → numeric)
+  const rows = await this.repo.createQueryBuilder('stock')
+    .innerJoin('stock.producto', 'p')
     .select('stock.producto_id', 'productoId')
-    .addSelect('SUM(stock.cantidad)', 'cantidadTotal')
+    .addSelect('p.es_por_gramos', 'es_por_gramos')
+    .addSelect(`
+      SUM(
+        CASE WHEN p.es_por_gramos
+             THEN COALESCE(stock.cantidad_gramos, 0)::numeric
+             ELSE COALESCE(stock.cantidad, 0)::numeric
+        END
+      )
+    `, 'cantidadTotal')
     .where('stock.almacen_id = :almacenId', { almacenId })
     .groupBy('stock.producto_id')
+    .addGroupBy('p.es_por_gramos')
     .getRawMany();
 
-  const stockTotalPorProducto = stockTotalPorProductoRaw
-    .filter(item => item.productoId !== null && item.productoId !== undefined)
-    .map(item => {
-      const productoId = parseInt(item.productoId);
-      const cantidadTotal = parseFloat(item.cantidadTotal);
-
-      if (isNaN(productoId) || isNaN(cantidadTotal)) {
-        console.warn('Producto con valores inválidos:', item);
-        return null;
-      }
-
-      return {
-        productoId,
-        cantidadTotal,
-      };
-    })
-    .filter(Boolean); // elimina los null
+  const stockTotalPorProducto = rows.map(r => ({
+    productoId: Number(r.productoId),
+    es_por_gramos: r.es_por_gramos === true || r.es_por_gramos === 'true',
+    cantidadTotal: Number(r.cantidadTotal),
+  }));
 
   return {
     almacenId,
     productosEnAlmacen: stockPorAlmacen,
-    stockTotalPorProducto,
+    stockTotalPorProducto, // cantidadTotal en piezas o gramos según el producto
   };
 }
 
+
+// MODIFICAR registrarInsumo (su DTO debería aceptar cantidad o cantidad_gramos)
 async registrarInsumo(dto: RegistrarInsumoDto): Promise<StockActual> {
-  const stock = await this.findOne(dto.producto_id, dto.almacen_id);
+  return this.repo.manager.transaction(async (m) => {
+    const producto = await m.getRepository(Producto).findOne({
+      where: { id: dto.producto_id },
+      select: ['id', 'es_por_gramos'],
+    });
+    if (!producto) throw new NotFoundException(`Producto ${dto.producto_id} no existe`);
 
-  const nombreProducto = stock.producto?.nombre || 'producto';
+    const stock = await m.getRepository(StockActual).findOne({
+      where: { producto_id: dto.producto_id, almacen_id: dto.almacen_id },
+      relations: ['producto', 'almacen'],
+    });
+    if (!stock) throw new NotFoundException(`Stock no encontrado para producto ${dto.producto_id} en almacén ${dto.almacen_id}`);
 
-  // Descontar del stock
-  const updated = await this.changeStock(dto.producto_id, dto.almacen_id, -dto.cantidad);
+    const nombreProducto = stock.producto?.nombre || 'producto';
 
-  // Registrar como movimiento tipo "insumo"
-  await this.movService.create({
-    producto_id: dto.producto_id,
-    origen_almacen: dto.almacen_id,
-    destino_almacen: undefined,
-    cantidad: dto.cantidad,
-    tipo: 'insumo',
-    motivo: `El producto "${nombreProducto}" fue utilizado como insumo`,
-    proveedor_id: undefined,
-    precioUnitario: undefined,
-    precioTotal: undefined,
+    const updated = await this.ajustarStockTx(m, dto.producto_id, dto.almacen_id, {
+      deltaPiezas: !producto.es_por_gramos ? -(dto.cantidad ?? 0) : 0,
+      deltaGramos:  producto.es_por_gramos  ? -(dto.cantidad_gramos ?? 0) : 0,
+    });
+
+    await this.movService.create({
+      producto_id: dto.producto_id,
+      origen_almacen: dto.almacen_id,
+      destino_almacen: undefined,
+      cantidad: !producto.es_por_gramos ? dto.cantidad : undefined,
+      cantidad_gramos: producto.es_por_gramos ? dto.cantidad_gramos : undefined,
+      tipo: 'insumo',
+      motivo: `El producto "${nombreProducto}" fue utilizado como insumo`,
+    });
+
+    return updated;
   });
-
-  return updated;
 }
 
+// MODIFICAR cancelarInsumo
 async cancelarInsumo(dto: CancelarInsumoDto): Promise<StockActual> {
-  const movimiento = await this.movService.findOne(dto.movimiento_id);
+  return this.repo.manager.transaction(async (m) => {
+    const movimiento = await this.movService.findOne(dto.movimiento_id);
 
-  if (movimiento.tipo !== 'insumo') {
-    throw new Error('Solo se pueden cancelar movimientos de tipo "insumo"');
+    if (movimiento.tipo !== 'insumo') {
+      throw new Error('Solo se pueden cancelar movimientos de tipo "insumo"');
+    }
+    if (!movimiento.origen_almacen) {
+      throw new Error('El movimiento de insumo no tiene un almacén origen definido');
+    }
+
+    // Si extendiste MovimientoStock con cantidad_gramos, usalo para revertir correctamente
+    const updated = await this.ajustarStockTx(m, movimiento.producto_id, movimiento.origen_almacen, {
+      deltaPiezas: movimiento.cantidad ?? 0,
+      deltaGramos: movimiento.cantidad_gramos !== undefined && movimiento.cantidad_gramos !== null ? Number(movimiento.cantidad_gramos) : 0, // NUEVO
+    });
+
+    await this.movService.remove(movimiento.id);
+    return updated;
+  });
+}
+
+
+
+
+
+
+
+
+// NUEVO helper
+private async ajustarStockTx(
+  m: EntityManager,
+  productoId: number,
+  almacenId: number,
+  opts: { deltaPiezas?: number; deltaGramos?: number }
+): Promise<StockActual> {
+  const producto = await m.getRepository(Producto).findOne({
+    where: { id: productoId },
+    select: ['id', 'es_por_gramos'],
+  });
+  if (!producto) {
+    throw new NotFoundException(`Producto ${productoId} no existe`);
   }
 
-  if (!movimiento.origen_almacen) {
-    throw new Error('El movimiento de insumo no tiene un almacén origen definido');
-  }
-
-  // Devolver el stock
-  const stockActualizado = await this.changeStock(
-    movimiento.producto_id,
-    movimiento.origen_almacen,
-    movimiento.cantidad,
+  // Crea la fila si no existe
+  await m.query(
+    `INSERT INTO stock_actual (producto_id, almacen_id, cantidad, cantidad_gramos)
+     VALUES ($1,$2,0,NULL)
+     ON CONFLICT (producto_id, almacen_id) DO NOTHING`,
+    [productoId, almacenId],
   );
 
-  // Eliminar el movimiento
-  await this.movService.remove(movimiento.id);
+  // Lock pesimista de la fila a actualizar
+  const stockRepo = m.getRepository(StockActual);
+  const row = await stockRepo.createQueryBuilder('s')
+    .where('s.producto_id = :productoId AND s.almacen_id = :almacenId', { productoId, almacenId })
+    .setLock('pessimistic_write')
+    .getOne();
 
-  return stockActualizado;
+  if (!row) {
+    throw new NotFoundException(`No existe stock para producto ${productoId} en almacén ${almacenId}`);
+  }
+
+  if (producto.es_por_gramos) {
+    const delta = Number(opts.deltaGramos ?? 0);
+    const actual = Number(row.cantidad_gramos ?? 0);
+    const nuevo = actual + delta;
+    if (nuevo < 0) throw new Error('Stock insuficiente (gramos)');
+    row.cantidad_gramos = nuevo.toString(); // NUMERIC → string
+    row.cantidad = 0;
+  } else {
+    const delta = Number(opts.deltaPiezas ?? 0);
+    const actual = Number(row.cantidad ?? 0);
+    const nuevo = actual + delta;
+    if (nuevo < 0) throw new Error('Stock insuficiente (piezas)');
+    row.cantidad = nuevo;
+    row.cantidad_gramos = null;
+  }
+
+  row.last_updated = new Date();
+  return stockRepo.save(row);
 }
-
 
 
 }

@@ -56,4 +56,7 @@ export class Producto {
   @Column({ type: 'boolean', default: true })
 activo: boolean;
 
+@Column({ type: 'boolean', name: 'es_por_gramos', default: false })
+es_por_gramos: boolean;
+
 }

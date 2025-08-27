@@ -30,4 +30,10 @@ export class StockActual {
 
   @UpdateDateColumn({ name: 'last_updated' })
   last_updated: Date;
+
+  // Gramos (usar string para NUMERIC en TypeORM)
+  @Column({ type: 'numeric', precision: 18, scale: 3, name: 'cantidad_gramos', nullable: true })
+  cantidad_gramos: string | null;
+
+  
 }

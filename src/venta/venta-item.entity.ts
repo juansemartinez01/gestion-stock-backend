@@ -15,8 +15,14 @@ export class VentaItem {
   @JoinColumn({ name: 'producto_id' })
   producto: Producto | null;
 
-  @Column({ type: 'integer' })
-  cantidad: number;
+    // ...
+  @Column({ type: 'int', nullable: true })
+  cantidad: number | null; // piezas
+
+  @Column({ type: 'numeric', precision: 12, scale: 3, nullable: true })
+  cantidad_gramos: string | null; // gramos
+  // ...
+
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   precioUnitario: number;
