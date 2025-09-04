@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Producto } from './producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
+import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
 
 
 @Injectable()
@@ -13,6 +14,9 @@ export class ProductoService {
   constructor(
     @InjectRepository(Producto)
     private readonly repo: Repository<Producto>,
+
+    @InjectRepository(ProductoPrecioAlmacen)
+    private readonly ppaRepo: Repository<ProductoPrecioAlmacen>,
   ) {}
 
   findAll(): Promise<Producto[]> {
@@ -39,6 +43,61 @@ export class ProductoService {
   }
   // ────────────────────────────────────────────────────────────────────────────
 
+
+
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // PRECIO POR ALMACÉN (OVERRIDE SIMPLE)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /** Devuelve el precio final (override si existe, si no precioBase) */
+  async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
+    const prod = await this.repo.findOne({ where: { id: productoId } });
+    if (!prod) throw new NotFoundException(`Producto ${productoId} no encontrado`);
+
+    if (almacenId) {
+      const override = await this.ppaRepo.findOne({
+        where: { producto_id: productoId, almacen_id: almacenId },
+      });
+      if (override?.precio != null) return Number(override.precio);
+    }
+    return Number(prod.precioBase ?? 0);
+  }
+
+  /** Upsert del precio por almacén */
+  async upsertPrecioAlmacen(input: { producto_id: number; almacen_id: number; precio: number; moneda?: string; }) {
+    const { producto_id, almacen_id, precio, moneda } = input;
+    if (precio <= 0) throw new BadRequestException('El precio debe ser > 0');
+
+    // aseguramos que el producto exista (útil para 404 claras)
+    const prod = await this.repo.findOne({ where: { id: producto_id } });
+    if (!prod) throw new NotFoundException(`Producto ${producto_id} no encontrado`);
+
+    const current = await this.ppaRepo.findOne({ where: { producto_id, almacen_id } });
+
+    if (current) {
+      current.precio = String(precio);
+      if (moneda) current.moneda = moneda;
+      return this.ppaRepo.save(current);
+    } else {
+      const nuevo = this.ppaRepo.create({
+        producto_id,
+        almacen_id,
+        precio: String(precio),
+        moneda: moneda ?? 'ARS',
+      });
+      return this.ppaRepo.save(nuevo);
+    }
+  }
+
+  /** Elimina el override y vuelve a usar precioBase */
+  async removePrecioAlmacen(producto_id: number, almacen_id: number) {
+    const res = await this.ppaRepo.delete({ producto_id, almacen_id });
+    if (!res.affected) {
+      throw new NotFoundException(`No existe override para producto ${producto_id} en almacén ${almacen_id}`);
+    }
+    return { ok: true };
+  }
   
 
 
@@ -207,7 +266,29 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     query.andWhere('stock.cantidad > 0');
   }
 
-  return query.getMany();
+
+  const productos = await query.getMany();
+  // Si viene almacenId, resolvemos precio final agregando override si existe.
+    if (almacenId && productos.length) {
+      const ids = productos.map(p => p.id);
+      const overrides = await this.ppaRepo.find({
+        where: { producto_id: In(ids), almacen_id: Number(almacenId) },
+      });
+      const mapOverride = new Map<number, number>();
+      overrides.forEach(o => mapOverride.set(o.producto_id, Number(o.precio)));
+
+      // Adjuntamos un campo "precioFinal" a cada objeto (sin tocar el schema de la entidad)
+      for (const p of productos) {
+        (p as any).precioFinal =
+          mapOverride.get(p.id) ?? Number(p.precioBase ?? 0);
+      }
+    } else {
+      // Si no vino almacen, devolvemos precioBase como precioFinal para consistencia
+      for (const p of productos) {
+        (p as any).precioFinal = Number(p.precioBase ?? 0);
+      }
+    }
+  return productos;
 }
 
   
