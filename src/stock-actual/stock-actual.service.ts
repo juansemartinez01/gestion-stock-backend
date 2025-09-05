@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { StockActual } from './stock-actual.entity';
 import { CreateStockActualDto } from './dto/create-stock-actual.dto';
 import { UpdateStockActualDto } from './dto/update-stock-actual.dto';
 import { MovimientoStockService } from 'src/movimiento-stock/movimiento-stock.service';
 import { RegistrarInsumoDto } from './dto/registrar-insumo.dto';
 import { CancelarInsumoDto } from './dto/cancelar-insumo.dto';
+import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
 
 @Injectable()
 export class StockActualService {
@@ -14,10 +15,62 @@ export class StockActualService {
     @InjectRepository(StockActual)
     private readonly repo: Repository<StockActual>,
     private readonly movService: MovimientoStockService,
+
+    @InjectRepository(ProductoPrecioAlmacen)
+    private readonly ppaRepo: Repository<ProductoPrecioAlmacen>,
   ) {}
 
-  findAll(): Promise<StockActual[]> {
-    return this.repo.find({ relations: ['producto', 'almacen'] });
+
+
+  /** Helper: resuelve precio final con override o usa precioBase */
+  private resolvePrecioFinal(
+    productoId: number,
+    precioBase: any, // puede venir string si el DECIMAL lo devuelve así
+    overrides: Map<number, number>,
+  ): number {
+    if (overrides.has(productoId)) return Number(overrides.get(productoId));
+    return Number(precioBase ?? 0);
+  }
+
+
+  /** Convierte DECIMAL(string) a number de forma segura */
+  private toNumber(n: any): number {
+    const v = Number(n);
+    return Number.isFinite(v) ? v : 0;
+  }
+  
+  /** Devuelve todo el stock con precioFinal por fila (override o precioBase) */
+  async findAll(): Promise<StockActual[]> {
+    // 1) Traigo stock con relaciones
+    const rows = await this.repo.find({ relations: ['producto', 'almacen'] });
+    if (!rows.length) return rows;
+
+    // 2) Preparo sets para consulta batch de overrides
+    const productoIds = Array.from(new Set(rows.map(r => r.producto_id)));
+    const almacenIds  = Array.from(new Set(rows.map(r => r.almacen_id)));
+
+    // 3) Busco overrides de una sola vez
+    const overrides = await this.ppaRepo.find({
+      where: { producto_id: In(productoIds), almacen_id: In(almacenIds) },
+    });
+
+    // 4) Mapa clave -> precio (clave = "productoId:almacenId")
+    const key = (pid: number, aid: number) => `${pid}:${aid}`;
+    const mapOverride = new Map<string, number>();
+    for (const o of overrides) {
+      mapOverride.set(key(o.producto_id, o.almacen_id), this.toNumber(o.precio));
+    }
+
+    // 5) Anoto precioFinal en cada fila (propiedad dinámica)
+    for (const r of rows) {
+      const base = this.toNumber((r.producto as any)?.precioBase);
+      const ov   = mapOverride.get(key(r.producto_id, r.almacen_id));
+      (r as any).precioFinal = ov ?? base;
+      // opcional: valor de la fila
+      (r as any).valorFila = (r as any).precioFinal * this.toNumber(r.cantidad);
+    }
+
+    return rows;
   }
 
   async registrarEntrada(dto: CreateStockActualDto): Promise<StockActual> {
@@ -109,44 +162,79 @@ export class StockActualService {
     return this.repo.save(stock);
   }
 
+  /** Devuelve stock por almacén + precioFinal por producto de ese almacén */
   async getStockByAlmacen(almacenId: number) {
-  const stockPorAlmacen = await this.repo.find({
-    where: { almacen: { id: almacenId } },
-    relations: ['producto', 'almacen'],
-  });
+    // 1) Traigo filas de stock con producto y almacén
+    const stockPorAlmacen = await this.repo.find({
+      where: { almacen: { id: almacenId } },
+      relations: ['producto', 'almacen'],
+    });
 
-  const stockTotalPorProductoRaw = await this.repo
-    .createQueryBuilder('stock')
-    .select('stock.producto_id', 'productoId')
-    .addSelect('SUM(stock.cantidad)', 'cantidadTotal')
-    .where('stock.almacen_id = :almacenId', { almacenId })
-    .groupBy('stock.producto_id')
-    .getRawMany();
+    // 2) Junto IDs únicos de producto
+    const productoIds = Array.from(
+      new Set(stockPorAlmacen.map(s => s.producto?.id).filter(Boolean)),
+    ) as number[];
 
-  const stockTotalPorProducto = stockTotalPorProductoRaw
-    .filter(item => item.productoId !== null && item.productoId !== undefined)
-    .map(item => {
-      const productoId = parseInt(item.productoId);
-      const cantidadTotal = parseFloat(item.cantidadTotal);
+    // 3) Traigo overrides en batch para este almacén
+    const overridesArr = productoIds.length
+      ? await this.ppaRepo.find({
+          where: { almacen_id: almacenId, producto_id: In(productoIds) },
+        })
+      : [];
 
-      if (isNaN(productoId) || isNaN(cantidadTotal)) {
-        console.warn('Producto con valores inválidos:', item);
-        return null;
+    const mapOverride = new Map<number, number>();
+    overridesArr.forEach(o => mapOverride.set(o.producto_id, Number(o.precio)));
+
+    // 4) Enriquezco cada fila con precioFinal y valorFila (precio * cantidad)
+    const stockConPrecio = stockPorAlmacen.map(s => {
+      const precioBase = (s.producto as any)?.precioBase; // DECIMAL puede venir string
+      const precioFinal = this.resolvePrecioFinal(
+        s.producto.id,
+        precioBase,
+        mapOverride,
+      );
+      // agrego propiedades dinámicas sin tocar el schema
+      (s as any).precioFinal = precioFinal;
+      (s as any).valorFila = precioFinal * Number(s.cantidad ?? 0);
+      return s;
+    });
+
+    // 5) Totales por producto (cantidadTotal + precioFinal + valorTotal)
+    const totalesMap = new Map<
+      number,
+      { productoId: number; cantidadTotal: number; precioFinal: number; valorTotal: number }
+    >();
+
+    for (const s of stockConPrecio) {
+      const pid = s.producto.id;
+      const cant = Number(s.cantidad ?? 0);
+      const precioFinal = (s as any).precioFinal as number;
+
+      if (totalesMap.has(pid)) {
+        const t = totalesMap.get(pid)!;
+        t.cantidadTotal += cant;
+        t.valorTotal += cant * precioFinal;
+        // Si te interesa un precio “representativo” por producto, dejamos el mismo.
+        // (Si querés ponderado por lotes, se puede calcular aparte.)
+      } else {
+        totalesMap.set(pid, {
+          productoId: pid,
+          cantidadTotal: cant,
+          precioFinal,                 // precio resuelto para ese producto en este almacén
+          valorTotal: cant * precioFinal,
+        });
       }
+    }
 
-      return {
-        productoId,
-        cantidadTotal,
-      };
-    })
-    .filter(Boolean); // elimina los null
+    const stockTotalPorProducto = Array.from(totalesMap.values());
 
-  return {
-    almacenId,
-    productosEnAlmacen: stockPorAlmacen,
-    stockTotalPorProducto,
-  };
-}
+    return {
+      almacenId,
+      productosEnAlmacen: stockConPrecio, // cada fila trae precioFinal y valorFila
+      stockTotalPorProducto,              // por producto: cantidadTotal, precioFinal, valorTotal
+    };
+  }
+
 
 async registrarInsumo(dto: RegistrarInsumoDto): Promise<StockActual> {
   const stock = await this.findOne(dto.producto_id, dto.almacen_id);

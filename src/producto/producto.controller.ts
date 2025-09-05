@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, ParseIntPipe } from '@nestjs/common';
 import { ProductoService } from './producto.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { Producto } from './producto.entity';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
+import { UpsertPrecioDto } from 'src/producto-precio-almacen/dto/upsert-precio.dto';
 
 @Controller('productos')
 export class ProductoController {
@@ -49,6 +50,28 @@ async borrarLogico(@Param('id') id: string) {
     return this.service.findByBarcode(code);
   }
 
+
+
+  @Post('precio-override')
+  upsertPrecio(@Body() dto: UpsertPrecioDto) {
+    return this.service.upsertPrecioAlmacen(dto);
+  }
+
+  @Delete('precio-override/:productoId/:almacenId')
+  removePrecio(
+    @Param('productoId', ParseIntPipe) productoId: number,
+    @Param('almacenId', ParseIntPipe) almacenId: number,
+  ) {
+    return this.service.removePrecioAlmacen(productoId, almacenId);
+  }
+
+  @Get(':id/precio')
+  getPrecio(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('almacenId') almacenId?: string,
+  ) {
+    return this.service.getPrecioFinal(id, almacenId ? Number(almacenId) : undefined);
+  }
   
 
 }
