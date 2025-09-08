@@ -26,13 +26,11 @@ export class ProductoService {
 
 
   
-  // src/producto/producto.service.ts
-async findAll(): Promise<Producto[]> {
+  async findAll(): Promise<Producto[]> {
   return this.repo.createQueryBuilder('producto')
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .select([
-      // columnas del producto que ya mostrás en el JSON…
       'producto.id',
       'producto.sku',
       'producto.nombre',
@@ -44,23 +42,20 @@ async findAll(): Promise<Producto[]> {
       'producto.barcode',
       'producto.precioBase',
       'producto.activo',
-
-      // 🔹 la que faltaba
+      // ya lo tenías, lo dejamos
       'producto.es_por_gramos',
-
-      // relación unidad (lo que ya mostrás)
       'unidad.id',
       'unidad.nombre',
       'unidad.abreviatura',
-      // opcional si existe: 'unidad.codigo',
-
-      // relación categoría (lo que ya mostrás)
       'categoria.id',
       'categoria.nombre',
       'categoria.descripcion',
     ])
+    // 👇 fuerza la inclusión del flag en el mapeo a entidad
+    .addSelect('producto.es_por_gramos')
     .getMany();
 }
+
 
 
   /** Genera un SKU compuesto por un prefijo derivado del nombre
@@ -212,7 +207,10 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .leftJoinAndSelect('producto.stock', 'stock')
     .leftJoinAndMapOne('stock.almacen', 'stock.almacen', 'almacen')
-    .where('producto.activo = true'); // si usás borrado lógico
+    
+    
+    .where('producto.activo = true') // si usás borrado lógico
+    .addSelect('producto.es_por_gramos');
 
   if (nombre) {
     query.andWhere('producto.nombre ILIKE :nombre', { nombre: `%${nombre}%` });
