@@ -26,9 +26,42 @@ export class ProductoService {
 
 
   
-  findAll(): Promise<Producto[]> {
-    return this.repo.find({ relations: ['unidad', 'categoria'] });
-  }
+  // src/producto/producto.service.ts
+async findAll(): Promise<Producto[]> {
+  return this.repo.createQueryBuilder('producto')
+    .leftJoinAndSelect('producto.unidad', 'unidad')
+    .leftJoinAndSelect('producto.categoria', 'categoria')
+    .select([
+      // columnas del producto que ya mostrás en el JSON…
+      'producto.id',
+      'producto.sku',
+      'producto.nombre',
+      'producto.descripcion',
+      'producto.unidad_id',
+      'producto.categoria_id',
+      'producto.created_at',
+      'producto.updated_at',
+      'producto.barcode',
+      'producto.precioBase',
+      'producto.activo',
+
+      // 🔹 la que faltaba
+      'producto.es_por_gramos',
+
+      // relación unidad (lo que ya mostrás)
+      'unidad.id',
+      'unidad.nombre',
+      'unidad.abreviatura',
+      // opcional si existe: 'unidad.codigo',
+
+      // relación categoría (lo que ya mostrás)
+      'categoria.id',
+      'categoria.nombre',
+      'categoria.descripcion',
+    ])
+    .getMany();
+}
+
 
   /** Genera un SKU compuesto por un prefijo derivado del nombre
    *  y una cadena aleatoria de 6 caracteres. */
