@@ -4,9 +4,10 @@ import { ProductoService } from './producto.service';
 import { ProductoController } from './producto.controller';
 import { Producto } from './producto.entity';
 import { Unidad } from 'src/unidad/unidad.entity';
+import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Producto,Unidad])],
+  imports: [TypeOrmModule.forFeature([Producto,Unidad,ProductoPrecioAlmacen])],
   providers: [ProductoService],
   controllers: [ProductoController],
   exports: [ ProductoService ],

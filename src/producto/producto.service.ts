@@ -8,15 +8,35 @@ import { BuscarProductoDto } from './dto/buscar-producto.dto';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
 import { Unidad } from 'src/unidad/unidad.entity';
 
+// arriba junto a los existentes
+import { In } from 'typeorm';
+import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
+
+
 @Injectable()
 export class ProductoService {
   constructor(
     @InjectRepository(Producto)
     private readonly repo: Repository<Producto>,
     @InjectRepository(Unidad)   private readonly unidadRepo: Repository<Unidad>,
+    @InjectRepository(ProductoPrecioAlmacen)
+  private readonly ppaRepo: Repository<ProductoPrecioAlmacen>,
   ) {}
 
 
+  /** Devuelve el precio final (override si existe para ese almacén; si no, precioBase) */
+async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
+  const prod = await this.repo.findOne({ where: { id: productoId } });
+  if (!prod) throw new NotFoundException(`Producto ${productoId} no encontrado`);
+
+  if (almacenId) {
+    const override = await this.ppaRepo.findOne({
+      where: { producto_id: productoId, almacen_id: almacenId },
+    });
+    if (override?.precio != null) return Number(override.precio);
+  }
+  return Number(prod.precioBase ?? 0);
+}
 
    private esGramos(u: Unidad | null | undefined) {
     const abbr = u?.abreviatura?.toLowerCase()?.trim();
@@ -207,9 +227,8 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .leftJoinAndSelect('producto.stock', 'stock')
     .leftJoinAndMapOne('stock.almacen', 'stock.almacen', 'almacen')
-    
-    
-    .where('producto.activo = true') // si usás borrado lógico
+    .where('producto.activo = true')
+    // 👇 aseguramos que venga el flag (tu lógica de gramos)
     .addSelect('producto.es_por_gramos');
 
   if (nombre) {
@@ -236,13 +255,39 @@ async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
     query.andWhere('stock.almacen_id = :almacenId', { almacenId: parseInt(almacenId) });
   }
 
+  // 👇 tu filtro original (lo dejamos tal cual)
   const conStockBool = conStock === 'true';
   if (conStockBool) {
     query.andWhere('stock.cantidad > 0');
   }
 
-  return query.getMany();
+  const productos = await query.getMany();
+
+  // === NUEVO: anexar precioFinal sin cambiar el schema ===
+  if (productos.length === 0) return productos;
+
+  // Si viene almacenId, buscamos overrides; si no, usamos precioBase como precioFinal
+  if (almacenId !== undefined && !isNaN(parseInt(almacenId))) {
+    const ids = productos.map(p => p.id);
+    const overrides = await this.ppaRepo.find({
+      where: { producto_id: In(ids), almacen_id: Number(almacenId) },
+    });
+
+    const mapOverride = new Map<number, number>();
+    overrides.forEach(o => mapOverride.set(o.producto_id, Number(o.precio)));
+
+    for (const p of productos) {
+      (p as any).precioFinal = mapOverride.get(p.id) ?? Number(p.precioBase ?? 0);
+    }
+  } else {
+    for (const p of productos) {
+      (p as any).precioFinal = Number(p.precioBase ?? 0);
+    }
+  }
+
+  return productos;
 }
+
 
   
 
@@ -252,5 +297,42 @@ async borrarLogicamente(id: number): Promise<Producto> {
   producto.activo = false;
   return this.repo.save(producto);
 }
+
+
+
+/** Upsert del precio por almacén */
+  async upsertPrecioAlmacen(input: { producto_id: number; almacen_id: number; precio: number; moneda?: string; }) {
+    const { producto_id, almacen_id, precio, moneda } = input;
+    if (precio <= 0) throw new BadRequestException('El precio debe ser > 0');
+
+    // aseguramos que el producto exista (útil para 404 claras)
+    const prod = await this.repo.findOne({ where: { id: producto_id } });
+    if (!prod) throw new NotFoundException(`Producto ${producto_id} no encontrado`);
+
+    const current = await this.ppaRepo.findOne({ where: { producto_id, almacen_id } });
+
+    if (current) {
+      current.precio = String(precio);
+      if (moneda) current.moneda = moneda;
+      return this.ppaRepo.save(current);
+    } else {
+      const nuevo = this.ppaRepo.create({
+        producto_id,
+        almacen_id,
+        precio: String(precio),
+        moneda: moneda ?? 'ARS',
+      });
+      return this.ppaRepo.save(nuevo);
+    }
+  }
+
+  /** Elimina el override y vuelve a usar precioBase */
+  async removePrecioAlmacen(producto_id: number, almacen_id: number) {
+    const res = await this.ppaRepo.delete({ producto_id, almacen_id });
+    if (!res.affected) {
+      throw new NotFoundException(`No existe override para producto ${producto_id} en almacén ${almacen_id}`);
+    }
+    return { ok: true };
+  }
 
 }

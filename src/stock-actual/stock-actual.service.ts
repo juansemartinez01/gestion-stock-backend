@@ -8,6 +8,10 @@ import { MovimientoStockService } from 'src/movimiento-stock/movimiento-stock.se
 import { RegistrarInsumoDto } from './dto/registrar-insumo.dto';
 import { CancelarInsumoDto } from './dto/cancelar-insumo.dto';
 import { Producto } from 'src/producto/producto.entity';
+// arriba, junto con los existentes
+import { In } from 'typeorm';
+import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
+
 
 @Injectable()
 export class StockActualService {
@@ -17,11 +21,62 @@ export class StockActualService {
     @InjectRepository(Producto)
     private readonly prodRepo: Repository<Producto>,
     private readonly movService: MovimientoStockService,
+    @InjectRepository(ProductoPrecioAlmacen)
+  private readonly ppaRepo: Repository<ProductoPrecioAlmacen>,
   ) {}
 
-  findAll(): Promise<StockActual[]> {
-    return this.repo.find({ relations: ['producto', 'almacen'] });
+  // Convierte DECIMAL(string) a number seguro
+private toNumber(n: any): number {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : 0;
+}
+
+// Resuelve precio final: override (si existe) o precioBase
+private resolvePrecioFinal(
+  productoId: number,
+  almacenId: number,
+  precioBase: any,
+  overrides: Map<string, number>, // key = `${productoId}:${almacenId}`
+): number {
+  const k = `${productoId}:${almacenId}`;
+  if (overrides.has(k)) return this.toNumber(overrides.get(k));
+  return this.toNumber(precioBase ?? 0);
+}
+  async findAll(): Promise<StockActual[]> {
+  // Traigo stock con relaciones (necesitamos producto.precioBase y producto.es_por_gramos)
+  const rows = await this.repo.find({ relations: ['producto', 'almacen'] });
+  if (!rows.length) return rows;
+
+  // IDs únicos para buscar overrides en lote
+  const productoIds = Array.from(new Set(rows.map(r => r.producto_id)));
+  const almacenIds  = Array.from(new Set(rows.map(r => r.almacen_id)));
+
+  // Overrides por (producto, almacén)
+  const overridesArr = await this.ppaRepo.find({
+    where: { producto_id: In(productoIds), almacen_id: In(almacenIds) },
+  });
+  const ovMap = new Map<string, number>();
+  for (const o of overridesArr) {
+    ovMap.set(`${o.producto_id}:${o.almacen_id}`, this.toNumber(o.precio));
   }
+
+  // Enriquecer cada fila con precioFinal y valorFila
+  for (const r of rows) {
+    const prod: any = r.producto;
+    const precioFinal = this.resolvePrecioFinal(r.producto_id, r.almacen_id, prod?.precioBase, ovMap);
+    (r as any).precioFinal = precioFinal;
+
+    const esGr = prod?.es_por_gramos === true;
+    const qtyNormalizada = esGr
+      ? this.toNumber(r.cantidad_gramos) / 1000 // gramos → kg
+      : this.toNumber(r.cantidad);              // piezas
+
+    (r as any).valorFila = this.toNumber(precioFinal) * qtyNormalizada;
+  }
+
+  return rows;
+}
+
 
   async registrarEntrada(dto: CreateStockActualDto): Promise<StockActual> {
   return this.repo.manager.transaction(async (m) => {
@@ -126,12 +181,19 @@ async changeStock(
 
   // MODIFICAR getStockByAlmacen
 async getStockByAlmacen(almacenId: number) {
+  // Helper local para números seguros (DECIMAL puede venir string)
+  const toNumber = (n: any) => {
+    const v = Number(n);
+    return Number.isFinite(v) ? v : 0;
+  };
+
+  // 1) Filas detalladas con relaciones (producto/almacen)
   const stockPorAlmacen = await this.repo.find({
     where: { almacen: { id: almacenId } },
     relations: ['producto', 'almacen'],
   });
 
-  // Suma normalizada por producto (pieces → int, grams → numeric)
+  // 2) Tu suma normalizada por producto (piezas → int, gramos → numeric)
   const rows = await this.repo.createQueryBuilder('stock')
     .innerJoin('stock.producto', 'p')
     .select('stock.producto_id', 'productoId')
@@ -149,18 +211,81 @@ async getStockByAlmacen(almacenId: number) {
     .addGroupBy('p.es_por_gramos')
     .getRawMany();
 
-  const stockTotalPorProducto = rows.map(r => ({
+  // Base: tus campos actuales (cantidadTotal en piezas o gramos según producto)
+  const baseTotales = rows.map(r => ({
     productoId: Number(r.productoId),
     es_por_gramos: r.es_por_gramos === true || r.es_por_gramos === 'true',
     cantidadTotal: Number(r.cantidadTotal),
   }));
 
+  // 3) Overrides de precio por (producto, almacén) para este almacén
+  const productoIds = baseTotales.map(x => x.productoId);
+  const overridesArr = productoIds.length
+    ? await this.ppaRepo.find({
+        where: { almacen_id: almacenId, producto_id: In(productoIds) },
+      })
+    : [];
+
+  // Map de override por productoId (en este almacén)
+  const overridePorProducto = new Map<number, number>();
+  for (const o of overridesArr) {
+    overridePorProducto.set(o.producto_id, toNumber(o.precio));
+  }
+
+  // Map rápido de producto por id desde las filas detalladas
+  const prodById = new Map<number, any>();
+  for (const s of stockPorAlmacen) {
+    if (s.producto) prodById.set(s.producto.id, s.producto as any);
+  }
+
+  // 4) Enriquecer cada fila DETALLADA con precioFinal y valorFila
+  for (const s of stockPorAlmacen) {
+    const prod: any = s.producto || {};
+    const pid = prod?.id;
+    const precioBase = toNumber(prod?.precioBase);
+    const precioFinal = overridePorProducto.has(pid)
+      ? toNumber(overridePorProducto.get(pid))
+      : precioBase;
+
+    (s as any).precioFinal = precioFinal;
+
+    // Normalizo cantidad facturable: piezas o kg (gramos / 1000)
+    const esGr = prod?.es_por_gramos === true;
+    const qtyNorm = esGr ? toNumber(s.cantidad_gramos) / 1000 : toNumber(s.cantidad);
+
+    (s as any).valorFila = toNumber(precioFinal) * qtyNorm;
+  }
+
+  // 5) Enriquecer el RESUMEN por producto con precioFinal y valorTotal
+  const stockTotalPorProducto = baseTotales.map(row => {
+    const prod: any = prodById.get(row.productoId) || {};
+    const precioBase = toNumber(prod?.precioBase);
+
+    const precioFinal = overridePorProducto.has(row.productoId)
+      ? toNumber(overridePorProducto.get(row.productoId))
+      : precioBase;
+
+    // cantidad facturable en unidades de precio: piezas o kg
+    const cantidadFact = row.es_por_gramos
+      ? toNumber(row.cantidadTotal) / 1000 // gramos → kg
+      : toNumber(row.cantidadTotal);       // piezas
+
+    const valorTotal = toNumber(precioFinal) * cantidadFact;
+
+    return {
+      ...row,
+      precioFinal,
+      valorTotal,
+    };
+  });
+
   return {
     almacenId,
-    productosEnAlmacen: stockPorAlmacen,
-    stockTotalPorProducto, // cantidadTotal en piezas o gramos según el producto
+    productosEnAlmacen: stockPorAlmacen, // ahora trae precioFinal y valorFila
+    stockTotalPorProducto,               // ahora trae precioFinal y valorTotal
   };
 }
+
 
 
 // MODIFICAR registrarInsumo (su DTO debería aceptar cantidad o cantidad_gramos)

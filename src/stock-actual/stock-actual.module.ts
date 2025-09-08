@@ -5,9 +5,10 @@ import { StockActualController } from './stock-actual.controller';
 import { StockActual } from './stock-actual.entity';
 import { MovimientoStockModule } from 'src/movimiento-stock/movimiento-stock.module';
 import { Producto } from 'src/producto/producto.entity';
+import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StockActual,Producto]),MovimientoStockModule],
+  imports: [TypeOrmModule.forFeature([StockActual,Producto,ProductoPrecioAlmacen]),MovimientoStockModule],
   providers: [StockActualService],
   controllers: [StockActualController],
   exports: [ StockActualService ],
