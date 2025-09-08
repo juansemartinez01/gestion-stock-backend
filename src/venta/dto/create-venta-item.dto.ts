@@ -4,15 +4,18 @@ export class CreateVentaItemDto {
   @IsInt()
   productoId: number;
 
-  // XOR: o piezas o gramos
-  @ValidateIf(o => o.cantidad_gramos === undefined)
-  @IsInt() @Min(1)
+  // Solo para productos por pieza
+  @ValidateIf(o => o.cantidad_gramos == null)
   @IsOptional()
+  @IsInt()
+  @Min(1)
   cantidad?: number;
 
-  @ValidateIf(o => o.cantidad === undefined)
-  @IsNumber({ maxDecimalPlaces: 3 }) @Min(0.001)
+  // Solo para productos por gramos
+  @ValidateIf(o => o.cantidad == null)
   @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
   cantidad_gramos?: number;
 
   // piezas => por unidad; gramos => por kilogramo

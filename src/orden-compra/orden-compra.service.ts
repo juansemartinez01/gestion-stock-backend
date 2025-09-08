@@ -1,7 +1,7 @@
 // src/orden-compra/orden-compra.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, DeepPartial } from 'typeorm';
 import { OrdenCompra } from './orden-compra.entity';
 import { OrdenCompraItem } from './orden-compra-item.entity';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
@@ -10,6 +10,7 @@ import { ProductoService } from '../producto/producto.service';
 import { MovimientoStock } from 'src/movimiento-stock/movimiento-stock.entity';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
 import { FiltroOrdenCompraDto } from './dto/filtro-orden-compra.dto';
+import { Producto } from 'src/producto/producto.entity';
 
 
 
@@ -29,72 +30,153 @@ export class OrdenCompraService {
   ) {}
 
   async crearOrdenConStock(dto: CreateOrdenCompraDto) {
-  return await this.dataSource.transaction(async manager => {
-    const { proveedorId, almacenId, usuarioId, items } = dto;
+    return await this.dataSource.transaction(async manager => {
+      const { proveedorId, almacenId, usuarioId, items } = dto;
 
-    // 1. Crear orden de compra
-    const orden = manager.create(OrdenCompra, {
-      proveedor: { id: proveedorId },
-      fecha: new Date(),
-      total: items.reduce((sum, i) => sum + i.precioUnitario * i.cantidad, 0),
-    });
-    await manager.save(orden);
+      // Calculamos subtotales con validación por item
+      const itemsProcesados: Array<{
+        producto: Producto;
+        productoId: number;
+        esPorGramos: boolean;
+        cantidad?: number;
+        cantidad_gramos?: number;
+        precioUnitario: number;
+        subtotal: number;
+      }> = [];
 
-    for (const item of items) {
-      const { productoId, cantidad, precioUnitario } = item;
-      const subtotal = cantidad * precioUnitario;
+      for (const i of items) {
+        const producto = await manager.findOne(Producto, { where: { id: i.productoId } });
+        if (!producto) {
+          throw new NotFoundException(`Producto ${i.productoId} no encontrado`);
+        }
 
-      // 2. Crear orden_compra_item
-      const ordenItem = manager.create(OrdenCompraItem, {
-        orden: orden,
-        producto: { id: productoId },
-        cantidad,
-        precioUnitario,
-        subtotal,
-      });
-      await manager.save(ordenItem);
+        const esPorGramos = !!producto.es_por_gramos;
 
-      // 3. Registrar movimiento de stock
-      const movimiento = manager.create(MovimientoStock, {
-        producto_id: productoId,
-        destino_almacen: almacenId,
-        cantidad,
-        tipo: 'entrada',
-        usuario_id: usuarioId,
-        proveedor_id: proveedorId,
-        precioUnitario,
-        precioTotal: subtotal,
-        motivo: 'Ingreso por orden de compra'
-      });
-      await manager.save(movimiento);
+        // Validaciones "uno u otro"
+        const traePiezas = i.cantidad != null && i.cantidad !== undefined;
+        const traeGramos = i.cantidad_gramos != null && i.cantidad_gramos !== undefined;
 
+        if (esPorGramos) {
+          if (!traeGramos || traePiezas) {
+            throw new BadRequestException(
+              `El producto ${producto.nombre} se maneja por gramos: enviar 'cantidad_gramos' (y NO 'cantidad').`,
+            );
+          }
+        } else {
+          if (!traePiezas || traeGramos) {
+            throw new BadRequestException(
+              `El producto ${producto.nombre} se maneja por piezas: enviar 'cantidad' (y NO 'cantidad_gramos').`,
+            );
+          }
+        }
 
-      // 4. Actualizar stock_actual
-      const stock = await manager.findOne(StockActual, {
-        where: {
-          producto: { id: productoId },
-          almacen: { id: almacenId },
-        },
-      });
+        // Semántica precioUnitario:
+        // - Por piezas: precio por pieza
+        // - Por gramos: precio por gramo
+        // Si preferís manejar "precio por KG", descomentar:
+        // const precioUnitario = esPorGramos ? (i.precioUnitario / 1000) : i.precioUnitario;
+        const precioUnitario = i.precioUnitario;
 
-      if (stock) {
-        stock.cantidad += cantidad;
-        stock.last_updated = new Date();
-        await manager.save(stock);
-      } else {
-        const nuevoStock = manager.create(StockActual, {
-          producto: { id: productoId },
-          almacen: { id: almacenId },
+        const cantidad = traePiezas ? i.cantidad! : undefined;
+        const cantidad_gramos = traeGramos ? i.cantidad_gramos! : undefined;
+
+        const base = esPorGramos ? cantidad_gramos! : cantidad!;
+        const subtotal = Number((base * precioUnitario).toFixed(2));
+
+        itemsProcesados.push({
+          producto,
+          productoId: i.productoId,
+          esPorGramos,
           cantidad,
-          lastUpdated: new Date(),
+          cantidad_gramos,
+          precioUnitario,
+          subtotal,
         });
-        await manager.save(nuevoStock);
       }
-    }
 
-    return { mensaje: 'Stock ingresado y orden de compra registrada', ordenId: orden.id };
-  });
-}
+      // Total de la orden con subtotales ya validados
+      const totalOrden = itemsProcesados.reduce((acc, it) => acc + it.subtotal, 0);
+
+      // 1) Crear orden
+      const orden = manager.create(OrdenCompra, {
+        proveedor: { id: proveedorId },
+        fecha: new Date(),
+        total: totalOrden,
+      });
+      await manager.save(orden);
+
+      // 2) Crear items + 3) movimiento stock + 4) actualizar stock
+      for (const it of itemsProcesados) {
+        // 2) item
+        const ordenItem = manager.create(OrdenCompraItem, {
+          orden: orden,
+          producto: { id: it.productoId },
+          cantidad: it.esPorGramos ? null : it.cantidad!,
+          cantidad_gramos: it.esPorGramos ? (Number(it.cantidad_gramos!.toFixed(3)).toString()) : null, // guardamos como string para NUMERIC
+          precioUnitario: it.precioUnitario,
+          subtotal: it.subtotal,
+        });
+        await manager.save(ordenItem);
+
+        // 3) movimiento
+        
+
+        const movimiento = new MovimientoStock();
+        movimiento.producto_id     = it.productoId;
+        movimiento.destino_almacen = almacenId;
+        movimiento.cantidad        = it.esPorGramos ? null : it.cantidad!;
+        movimiento.cantidad_gramos = it.esPorGramos ? it.cantidad_gramos!.toFixed(3) : null;
+        movimiento.tipo            = 'entrada';
+        movimiento.usuario_id      = usuarioId;
+        movimiento.proveedor_id    = proveedorId;
+        movimiento.precioUnitario  = it.precioUnitario;
+        movimiento.precioTotal     = it.subtotal;
+        movimiento.motivo          = 'Ingreso por orden de compra';
+
+        await manager.save(movimiento);
+
+
+
+
+        // 4) stock_actual
+        let stock = await manager.findOne(StockActual, {
+          where: {
+            producto: { id: it.productoId },
+            almacen: { id: almacenId },
+          },
+        });
+
+        if (stock) {
+          if (it.esPorGramos) {
+            const actual = stock.cantidad_gramos ? Number(stock.cantidad_gramos) : 0;
+            const nuevo = actual + it.cantidad_gramos!;
+            stock.cantidad_gramos = nuevo.toFixed(3);
+            // aseguramos piezas en 0 si es por gramos
+            if (stock.cantidad == null) stock.cantidad = 0;
+          } else {
+            stock.cantidad = (stock.cantidad ?? 0) + it.cantidad!;
+            // aseguramos gramos nulo/0 si es por piezas (opcional)
+            if (!stock.cantidad_gramos) stock.cantidad_gramos = null;
+          }
+          // UpdateDateColumn maneja last_updated solo
+          await manager.save(stock);
+        } else {
+          // crear registro nuevo
+          const nuevoStock = manager.create(StockActual, {
+            producto: { id: it.productoId },
+            almacen: { id: almacenId },
+            cantidad: it.esPorGramos ? 0 : it.cantidad!,
+            cantidad_gramos: it.esPorGramos ? it.cantidad_gramos!.toFixed(3) : null,
+            // last_updated lo setea automáticamente el @UpdateDateColumn al update posterior;
+            // en insert no aplica, pero no es necesario setearlo manualmente
+          });
+          await manager.save(nuevoStock);
+        }
+      }
+
+      return { mensaje: 'Stock ingresado y orden de compra registrada', ordenId: orden.id };
+    });
+  }
 
   async obtenerDetalle(id: number) {
     const orden = await this.ordenRepo.findOne({
@@ -131,6 +213,7 @@ async obtenerTodasConFiltros(filtros: FiltroOrdenCompraDto) {
       'proveedor.nombre',
       'items.id',
       'items.cantidad',
+      'items.cantidad_gramos',
       'items.precioUnitario',
       'items.subtotal',
       'producto.id',
@@ -170,6 +253,7 @@ async obtenerTodasConFiltros(filtros: FiltroOrdenCompraDto) {
     items: orden.items.map((item) => ({
       id: item.id,
       cantidad: item.cantidad,
+      cantidad_gramos: item['cantidad_gramos'] ?? null,
       precioUnitario: item.precioUnitario,
       subtotal: item.subtotal,
       producto: {

@@ -21,6 +21,8 @@ import moment from 'moment-timezone';
 
 
 
+
+
 @Injectable()
 export class VentaService {
   constructor(
@@ -153,7 +155,10 @@ export class VentaService {
       origen_almacen: dto.almacenId,
       destino_almacen: undefined,
       cantidad: piezas || undefined,
-      cantidad_gramos: gramos || undefined,
+      cantidad_gramos: (typeof gramos === 'number' && gramos > 0)
+    ? Number(gramos.toFixed(3))                                             // number (no string)
+    : undefined,
+
       tipo: 'salida',
       motivo: `Venta #${saved.id}`,
     });
@@ -565,7 +570,9 @@ async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
       origen_almacen: dto.almacenId,
       destino_almacen: undefined,
       cantidad: piezas || undefined,               // solo si hubo piezas
-      cantidad_gramos: gramos || undefined,        // solo si hubo gramos
+      cantidad_gramos: (typeof gramos === 'number' && gramos > 0)
+      ? Number(gramos.toFixed(3))                                             // number (no string)
+      : undefined,
       tipo: 'salida',
       motivo: `Venta #${saved.id}`,
     });

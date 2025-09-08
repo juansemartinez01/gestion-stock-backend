@@ -1,10 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Promocion } from './promocion.entity';
 import { CreatePromocionDto } from './dto/create-promocion.dto';
 import { PromocionProducto } from './promocion-producto.entity';
 import { UpdatePromocionDto } from './dto/update-promocion.dto';
+import { Producto } from 'src/producto/producto.entity';
 
 @Injectable()
 export class PromocionService {
@@ -14,6 +15,8 @@ export class PromocionService {
 
     @InjectRepository(PromocionProducto)
     private readonly promoProdRepo: Repository<PromocionProducto>,
+
+    @InjectRepository(Producto) private readonly prodRepo: Repository<Producto>,
   ) {}
 
   async create(dto: CreatePromocionDto): Promise<Promocion> {
@@ -21,46 +24,66 @@ export class PromocionService {
     where: { codigo: dto.codigo },
     relations: ['productos', 'productos.producto'],
   });
-
   if (existente) {
     if (existente.activo) {
       const productos = existente.productos.map(p => ({
         id: p.producto.id,
         nombre: p.producto.nombre,
         cantidad: p.cantidad,
+        cantidad_gramos: p.cantidad_gramos,
       }));
-
       throw new ConflictException({
         mensaje: `Ya existe una promoción ACTIVA con el código "${dto.codigo}"`,
         productos,
       });
     } else {
-      throw new ConflictException(
-        `El código "${dto.codigo}" pertenece a una promoción INACTIVA. Por favor use otro código.`
-      );
+      throw new ConflictException(`El código "${dto.codigo}" pertenece a una promoción INACTIVA. Por favor use otro código.`);
     }
+  }
+
+  const productosProcesados: PromocionProducto[] = [];
+  for (const p of dto.productos) {
+    const prod = await this.prodRepo.findOne({ where: { id: p.productoId } });
+    if (!prod) throw new NotFoundException(`Producto ${p.productoId} no encontrado`);
+
+    const esPorGramos = !!prod.es_por_gramos;
+    const traePiezas = p.cantidad != null;
+    const traeGramos = p.cantidad_gramos != null;
+
+    if (esPorGramos) {
+      if (!traeGramos || traePiezas) {
+        throw new BadRequestException(`El producto ${prod.nombre} se maneja por gramos: usar 'cantidad_gramos' (y no 'cantidad').`);
+      }
+    } else {
+      if (!traePiezas || traeGramos) {
+        throw new BadRequestException(`El producto ${prod.nombre} se maneja por piezas: usar 'cantidad' (y no 'cantidad_gramos').`);
+      }
+    }
+
+    const pp = new PromocionProducto();
+    pp.producto = prod;
+    pp.cantidad = esPorGramos ? null : p.cantidad!;
+    pp.cantidad_gramos = esPorGramos ? p.cantidad_gramos!.toFixed(3) : null;
+
+    productosProcesados.push(pp);
   }
 
   const promocion = this.promoRepo.create({
     codigo: dto.codigo,
     precioPromo: dto.precioPromo,
-    productos: dto.productos.map(p => {
-      const pp = new PromocionProducto();
-      pp.producto = { id: p.productoId } as any;
-      pp.cantidad = p.cantidad;
-      return pp;
-    }),
+    productos: productosProcesados,
   });
 
   return this.promoRepo.save(promocion);
 }
 
+
   findAll(): Promise<Promocion[]> {
-    return this.promoRepo.find({ relations: ['productos'] });
+    return this.promoRepo.find({ relations: ['productos', 'productos.producto'] });
   }
 
   async findOne(id: number): Promise<Promocion> {
-    const promocion = await this.promoRepo.findOne({ where: { id }, relations: ['productos'] });
+    const promocion = await this.promoRepo.findOne({ where: { id }, relations: ['productos', 'productos.producto'] });
     if (!promocion) {
       throw new Error(`Promocion with id ${id} not found`);
     }
@@ -97,36 +120,48 @@ async getPromocionById(id: number): Promise<Promocion> {
   return promocion;
 }
 
-async update(id: number, dto: UpdatePromocionDto): Promise<Promocion>
- {
-  const promocion = await this.promoRepo.findOne({
-    where: { id },
-    relations: ['productos'],
-  });
+async update(id: number, dto: UpdatePromocionDto): Promise<Promocion> {
+  const promocion = await this.promoRepo.findOne({ where: { id }, relations: ['productos'] });
+  if (!promocion) throw new NotFoundException(`Promoción con id ${id} no encontrada`);
 
-  if (!promocion) {
-    throw new NotFoundException(`Promoción con id ${id} no encontrada`);
+  if (dto.codigo !== undefined) promocion.codigo = dto.codigo;
+  if (dto.precioPromo !== undefined) promocion.precioPromo = dto.precioPromo;
+
+  // reemplazar productos si vienen
+  if (dto.productos) {
+    await this.promoProdRepo.delete({ promocion: { id } });
+
+    const nuevos: PromocionProducto[] = [];
+    for (const p of dto.productos) {
+      const prod = await this.prodRepo.findOne({ where: { id: p.productoId } });
+      if (!prod) throw new NotFoundException(`Producto ${p.productoId} no encontrado`);
+
+      const esPorGramos = !!prod.es_por_gramos;
+      const traePiezas = p.cantidad != null;
+      const traeGramos = p.cantidad_gramos != null;
+
+      if (esPorGramos) {
+        if (!traeGramos || traePiezas) {
+          throw new BadRequestException(`El producto ${prod.nombre} se maneja por gramos: usar 'cantidad_gramos' (y no 'cantidad').`);
+        }
+      } else {
+        if (!traePiezas || traeGramos) {
+          throw new BadRequestException(`El producto ${prod.nombre} se maneja por piezas: usar 'cantidad' (y no 'cantidad_gramos').`);
+        }
+      }
+
+      const pp = new PromocionProducto();
+      pp.producto = prod;
+      pp.cantidad = esPorGramos ? null : p.cantidad!;
+      pp.cantidad_gramos = esPorGramos ? p.cantidad_gramos!.toFixed(3) : null;
+      nuevos.push(pp);
+    }
+    promocion.productos = nuevos;
   }
-
-  // Actualizar datos principales
-  promocion.codigo = dto.codigo ?? promocion.codigo;
-  if (dto.precioPromo !== undefined) {
-    promocion.precioPromo = dto.precioPromo;
-  }
-
-  // Eliminar productos anteriores
-  await this.promoProdRepo.delete({ promocion: { id } });
-
-  // Cargar nuevos productos
-  promocion.productos = (dto.productos ?? []).map(p => {
-    const pp = new PromocionProducto();
-    pp.producto = { id: p.productoId } as any;
-    pp.cantidad = p.cantidad;
-    return pp;
-  });
 
   return this.promoRepo.save(promocion);
 }
+
 
 async findActivas(): Promise<Promocion[]> {
   return this.promoRepo.find({

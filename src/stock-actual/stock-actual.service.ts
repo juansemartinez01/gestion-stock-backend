@@ -42,14 +42,16 @@ export class StockActualService {
       origen_almacen: undefined,
       destino_almacen: dto.almacen_id,
       cantidad: !producto.es_por_gramos ? dto.cantidad : undefined,
-      // NUEVO si actualizás MovimientoStock:
-      cantidad_gramos: producto.es_por_gramos ? dto.cantidad_gramos : undefined,
+      cantidad_gramos: producto.es_por_gramos && dto.cantidad_gramos !== undefined
+      ? Number(dto.cantidad_gramos) // ✅ number
+      : undefined,
       tipo: 'entrada',
       motivo: dto.motivo || 'Reposición de stock',
       proveedor_id: dto.proveedor_id,
       precioUnitario: dto.precioUnitario,
       precioTotal: dto.precioTotal,
     });
+
 
     return updated;
   });
@@ -72,22 +74,20 @@ export class StockActualService {
   }
 
   async create(dto: CreateStockActualDto): Promise<StockActual> {
-  // Armamos un payload explícito para una sola fila
   const payload: DeepPartial<StockActual> = {
     producto_id: dto.producto_id,
     almacen_id: dto.almacen_id,
-    // Si viene piezas, usamos piezas; si viene gramos, dejamos piezas en 0.
     cantidad: dto.cantidad ?? 0,
-    // NUMERIC en PG → string en TypeORM; si no viene, NULL
     cantidad_gramos:
       dto.cantidad_gramos !== undefined
-        ? dto.cantidad_gramos.toString()
+        ? Number(dto.cantidad_gramos).toFixed(3) // 👈 normalizado
         : null,
   };
 
-  const entity = this.repo.create(payload); // ← create de una sola entidad (no array)
-  return await this.repo.save(entity);      // ← save devuelve StockActual, no array
+  const entity = this.repo.create(payload);
+  return await this.repo.save(entity);
 }
+
 
   async update(
     producto_id: number,
@@ -186,14 +186,17 @@ async registrarInsumo(dto: RegistrarInsumoDto): Promise<StockActual> {
     });
 
     await this.movService.create({
-      producto_id: dto.producto_id,
-      origen_almacen: dto.almacen_id,
-      destino_almacen: undefined,
-      cantidad: !producto.es_por_gramos ? dto.cantidad : undefined,
-      cantidad_gramos: producto.es_por_gramos ? dto.cantidad_gramos : undefined,
-      tipo: 'insumo',
-      motivo: `El producto "${nombreProducto}" fue utilizado como insumo`,
-    });
+    producto_id: dto.producto_id,
+    origen_almacen: dto.almacen_id,
+    destino_almacen: undefined,
+    cantidad: !producto.es_por_gramos ? dto.cantidad : undefined,
+    cantidad_gramos: producto.es_por_gramos && dto.cantidad_gramos !== undefined
+      ? Number(dto.cantidad_gramos) // ✅ number
+      : undefined,
+    tipo: 'insumo',
+    motivo: `El producto "${nombreProducto}" fue utilizado como insumo`,
+  });
+
 
     return updated;
   });
@@ -252,7 +255,7 @@ private async ajustarStockTx(
     [productoId, almacenId],
   );
 
-  // Lock pesimista de la fila a actualizar
+  // Lock pesimista
   const stockRepo = m.getRepository(StockActual);
   const row = await stockRepo.createQueryBuilder('s')
     .where('s.producto_id = :productoId AND s.almacen_id = :almacenId', { productoId, almacenId })
@@ -266,20 +269,18 @@ private async ajustarStockTx(
   if (producto.es_por_gramos) {
     const delta = Number(opts.deltaGramos ?? 0);
     const actual = Number(row.cantidad_gramos ?? 0);
-    const nuevo = actual + delta;
-    if (nuevo < 0) throw new Error('Stock insuficiente (gramos)');
-    row.cantidad_gramos = nuevo.toString(); // NUMERIC → string
-    row.cantidad = 0;
+    const nuevo = actual + delta;         // ✅ puede quedar negativo
+    row.cantidad_gramos = nuevo.toFixed(3); // NUMERIC como string con 3 decimales
+    row.cantidad = 0;                     // por consistencia, piezas en 0
   } else {
     const delta = Number(opts.deltaPiezas ?? 0);
     const actual = Number(row.cantidad ?? 0);
-    const nuevo = actual + delta;
-    if (nuevo < 0) throw new Error('Stock insuficiente (piezas)');
+    const nuevo = actual + delta;         // ✅ puede quedar negativo
     row.cantidad = nuevo;
-    row.cantidad_gramos = null;
+    row.cantidad_gramos = null;           // por consistencia, gramos null
   }
 
-  row.last_updated = new Date();
+  // @UpdateDateColumn actualiza solo; no es necesario setear manualmente
   return stockRepo.save(row);
 }
 

@@ -1,5 +1,11 @@
+// src/parametro-reorden/parametro-reorden.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Producto } from '../producto/producto.entity';
+
+const numericTransformer = {
+  to: (value: number | null) => value,                       // se guarda tal cual
+  from: (value: string | null) => (value == null ? null : Number(value)), // DB -> number
+};
 
 @Entity('parametros_reorden')
 @Unique(['producto_id'])
@@ -14,9 +20,22 @@ export class ParametroReorden {
   @JoinColumn({ name: 'producto_id' })
   producto: Producto;
 
-  @Column({ name: 'nivel_minimo', type: 'int' })
+  // ahora numeric con 3 decimales y transformer a number
+  @Column({
+    name: 'nivel_minimo',
+    type: 'numeric',
+    precision: 18,
+    scale: 3,
+    transformer: numericTransformer,
+  })
   nivel_minimo: number;
 
-  @Column({ name: 'nivel_optimo', type: 'int' })
+  @Column({
+    name: 'nivel_optimo',
+    type: 'numeric',
+    precision: 18,
+    scale: 3,
+    transformer: numericTransformer,
+  })
   nivel_optimo: number;
 }
