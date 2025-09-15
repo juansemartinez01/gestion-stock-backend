@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MaxLength, IsOptional, IsInt, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsOptional, IsInt, IsNumber, IsBoolean } from 'class-validator';
 
 export class CreateProductoDto {
   @IsString()
@@ -31,4 +31,8 @@ export class CreateProductoDto {
   @IsOptional()
   @MaxLength(100)
   barcode: string;
+
+  @IsBoolean()
+  @IsOptional()
+  es_por_gramos?: boolean; // en la entidad default=false
 }

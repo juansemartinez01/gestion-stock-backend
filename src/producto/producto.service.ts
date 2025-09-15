@@ -1,11 +1,15 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Producto } from './producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
 import { StockActual } from 'src/stock-actual/stock-actual.entity';
+import { Unidad } from 'src/unidad/unidad.entity';
+
+// arriba junto a los existentes
+import { In } from 'typeorm';
 import { ProductoPrecioAlmacen } from 'src/producto-precio-almacen/producto-precio-almacen.entity';
 
 
@@ -14,14 +18,65 @@ export class ProductoService {
   constructor(
     @InjectRepository(Producto)
     private readonly repo: Repository<Producto>,
-
+    @InjectRepository(Unidad)   private readonly unidadRepo: Repository<Unidad>,
     @InjectRepository(ProductoPrecioAlmacen)
-    private readonly ppaRepo: Repository<ProductoPrecioAlmacen>,
+  private readonly ppaRepo: Repository<ProductoPrecioAlmacen>,
   ) {}
 
-  findAll(): Promise<Producto[]> {
-    return this.repo.find({ relations: ['unidad', 'categoria'] });
+
+  /** Devuelve el precio final (override si existe para ese almacén; si no, precioBase) */
+async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
+  const prod = await this.repo.findOne({ where: { id: productoId } });
+  if (!prod) throw new NotFoundException(`Producto ${productoId} no encontrado`);
+
+  if (almacenId) {
+    const override = await this.ppaRepo.findOne({
+      where: { producto_id: productoId, almacen_id: almacenId },
+    });
+    if (override?.precio != null) return Number(override.precio);
   }
+  return Number(prod.precioBase ?? 0);
+}
+
+   private esGramos(u: Unidad | null | undefined) {
+    const abbr = u?.abreviatura?.toLowerCase()?.trim();
+    const name = u?.nombre?.toLowerCase()?.trim();
+    return abbr === 'g' || abbr === 'gr' || name === 'gramo' || name?.startsWith('gram');
+  }
+
+
+  
+  async findAll(): Promise<Producto[]> {
+  return this.repo.createQueryBuilder('producto')
+    .leftJoinAndSelect('producto.unidad', 'unidad')
+    .leftJoinAndSelect('producto.categoria', 'categoria')
+    .select([
+      'producto.id',
+      'producto.sku',
+      'producto.nombre',
+      'producto.descripcion',
+      'producto.unidad_id',
+      'producto.categoria_id',
+      'producto.created_at',
+      'producto.updated_at',
+      'producto.barcode',
+      'producto.precioBase',
+      'producto.activo',
+      // ya lo tenías, lo dejamos
+      'producto.es_por_gramos',
+      'unidad.id',
+      'unidad.nombre',
+      'unidad.abreviatura',
+      'categoria.id',
+      'categoria.nombre',
+      'categoria.descripcion',
+    ])
+    // 👇 fuerza la inclusión del flag en el mapeo a entidad
+    .addSelect('producto.es_por_gramos')
+    .getMany();
+}
+
+
 
   /** Genera un SKU compuesto por un prefijo derivado del nombre
    *  y una cadena aleatoria de 6 caracteres. */
@@ -43,28 +98,209 @@ export class ProductoService {
   }
   // ────────────────────────────────────────────────────────────────────────────
 
+  async create(dto: CreateProductoDto): Promise<Producto> {
 
-
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // PRECIO POR ALMACÉN (OVERRIDE SIMPLE)
-  // ────────────────────────────────────────────────────────────────────────────
-
-  /** Devuelve el precio final (override si existe, si no precioBase) */
-  async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
-    const prod = await this.repo.findOne({ where: { id: productoId } });
-    if (!prod) throw new NotFoundException(`Producto ${productoId} no encontrado`);
-
-    if (almacenId) {
-      const override = await this.ppaRepo.findOne({
-        where: { producto_id: productoId, almacen_id: almacenId },
-      });
-      if (override?.precio != null) return Number(override.precio);
-    }
-    return Number(prod.precioBase ?? 0);
+    const unidad = await this.unidadRepo.findOne({ where: { id: dto.unidad_id } });
+    if (!unidad) throw new NotFoundException('Unidad no encontrada');
+  // 🔁 Generar SKU si no viene
+  if (!dto.sku) {
+    dto.sku = this.generateSku(dto.nombre);
   }
 
-  /** Upsert del precio por almacén */
+  // 🔎 Verificar duplicado por SKU
+  const existingSku = await this.repo.findOne({ where: { sku: dto.sku } });
+  if (existingSku) {
+    throw new ConflictException(`El producto con SKU "${dto.sku}" ya existe.`);
+  }
+
+  // 🔍 Verificar si existe un producto con el mismo código de barras
+  if (dto.barcode) {
+    const existingBarcode = await this.repo.findOne({ where: { barcode: dto.barcode } });
+
+    if (existingBarcode) {
+      if (existingBarcode.activo) {
+        throw new ConflictException(
+          `Ya existe un producto activo con ese código de barras. Nombre: "${existingBarcode.nombre}".`
+        );
+      } else {
+        // 🛠️ Si existe pero está inactivo, lo actualizamos
+        existingBarcode.nombre = dto.nombre;
+        existingBarcode.descripcion = dto.descripcion;
+        existingBarcode.unidad_id = dto.unidad_id;
+        existingBarcode.categoria_id = dto.categoria_id;
+        existingBarcode.sku = dto.sku;
+        existingBarcode.precioBase = dto.precioBase;
+        existingBarcode.activo = true;
+        existingBarcode.updated_at = new Date();
+
+        return this.repo.save(existingBarcode);
+      }
+    }
+  }
+
+  // ✅ Crear producto normalmente
+  const nuevo = this.repo.create({
+      sku: dto.sku,
+      nombre: dto.nombre,
+      descripcion: dto.descripcion,
+      precioBase: dto.precioBase,
+      barcode: dto.barcode,
+      unidad,
+      es_por_gramos: this.esGramos(unidad),
+    });
+  return this.repo.save(nuevo);
+}
+
+
+  async findOne(id: number): Promise<Producto> {
+  const idParsed = Number(id);
+
+  // Si el ID no es un número entero válido, devolvemos un producto vacío
+  if (!Number.isInteger(idParsed)) {
+    return this.getDefaultProducto();
+  }
+
+  const prod = await this.repo.findOne({
+    where: { id: idParsed },
+    relations: ['unidad', 'categoria'],
+  });
+
+  return prod ?? this.getDefaultProducto();
+}
+  private getDefaultProducto(): Producto {
+    const defaultProducto = new Producto();
+    defaultProducto.id = -1; // ID inválido
+    defaultProducto.nombre = 'Producto no encontrado';
+    defaultProducto.sku = 'N/A';
+    defaultProducto.barcode = 'N/A';
+    return defaultProducto;
+  }
+
+  
+
+  async update(id: number, dto: UpdateProductoDto): Promise<Producto> {
+
+    let unidad: Unidad | undefined;
+    let es_por_gramos: boolean | undefined;
+
+    if (dto.unidad_id !== undefined) {
+      const unidadResult = await this.unidadRepo.findOne({ where: { id: dto.unidad_id } });
+      if (!unidadResult) throw new NotFoundException('Unidad no encontrada');
+      unidad = unidadResult;
+      es_por_gramos = this.esGramos(unidad);
+    }
+    await this.repo.update(
+      { id },
+      {
+        ...dto,
+        ...(unidad ? { unidad } : {}),
+        ...(es_por_gramos !== undefined ? { es_por_gramos } : {}),
+      } as any,
+    );
+
+    const producto = await this.repo.findOne({ where: { id }, relations: ['unidad'] });
+    if (!producto) {
+      throw new NotFoundException(`Producto ${id} no encontrado`);
+    }
+    return producto;
+  
+  }
+
+  async remove(id: number): Promise<void> {
+    const res = await this.repo.delete(id);
+    if (res.affected === 0) throw new NotFoundException(`Producto ${id} no encontrado`);
+  }
+
+  // src/producto/producto.service.ts
+  async findByBarcode(barcode: string): Promise<Producto> {
+    const p = await this.repo.findOne({ where: { barcode } });
+    if (!p) throw new NotFoundException(`No existe producto con barcode ${barcode}`);
+    return p;
+  }
+
+
+async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
+  const { nombre, sku, barcode, categoriaId, unidadId, conStock, almacenId } = filtros;
+
+  const query = this.repo.createQueryBuilder('producto')
+    .leftJoinAndSelect('producto.unidad', 'unidad')
+    .leftJoinAndSelect('producto.categoria', 'categoria')
+    .leftJoinAndSelect('producto.stock', 'stock')
+    .leftJoinAndMapOne('stock.almacen', 'stock.almacen', 'almacen')
+    .where('producto.activo = true')
+    // 👇 aseguramos que venga el flag (tu lógica de gramos)
+    .addSelect('producto.es_por_gramos');
+
+  if (nombre) {
+    query.andWhere('producto.nombre ILIKE :nombre', { nombre: `%${nombre}%` });
+  }
+
+  if (sku) {
+    query.andWhere('producto.sku = :sku', { sku });
+  }
+
+  if (barcode) {
+    query.andWhere('producto.barcode = :barcode', { barcode });
+  }
+
+  if (categoriaId !== undefined && !isNaN(parseInt(categoriaId))) {
+    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: parseInt(categoriaId) });
+  }
+
+  if (unidadId !== undefined && !isNaN(parseInt(unidadId))) {
+    query.andWhere('producto.unidad_id = :unidadId', { unidadId: parseInt(unidadId) });
+  }
+
+  if (almacenId !== undefined && !isNaN(parseInt(almacenId))) {
+    query.andWhere('stock.almacen_id = :almacenId', { almacenId: parseInt(almacenId) });
+  }
+
+  // 👇 tu filtro original (lo dejamos tal cual)
+  const conStockBool = conStock === 'true';
+  if (conStockBool) {
+    query.andWhere('stock.cantidad > 0');
+  }
+
+  const productos = await query.getMany();
+
+  // === NUEVO: anexar precioFinal sin cambiar el schema ===
+  if (productos.length === 0) return productos;
+
+  // Si viene almacenId, buscamos overrides; si no, usamos precioBase como precioFinal
+  if (almacenId !== undefined && !isNaN(parseInt(almacenId))) {
+    const ids = productos.map(p => p.id);
+    const overrides = await this.ppaRepo.find({
+      where: { producto_id: In(ids), almacen_id: Number(almacenId) },
+    });
+
+    const mapOverride = new Map<number, number>();
+    overrides.forEach(o => mapOverride.set(o.producto_id, Number(o.precio)));
+
+    for (const p of productos) {
+      (p as any).precioFinal = mapOverride.get(p.id) ?? Number(p.precioBase ?? 0);
+    }
+  } else {
+    for (const p of productos) {
+      (p as any).precioFinal = Number(p.precioBase ?? 0);
+    }
+  }
+
+  return productos;
+}
+
+
+  
+
+
+async borrarLogicamente(id: number): Promise<Producto> {
+  const producto = await this.findOne(id);
+  producto.activo = false;
+  return this.repo.save(producto);
+}
+
+
+
+/** Upsert del precio por almacén */
   async upsertPrecioAlmacen(input: { producto_id: number; almacen_id: number; precio: number; moneda?: string; }) {
     const { producto_id, almacen_id, precio, moneda } = input;
     if (precio <= 0) throw new BadRequestException('El precio debe ser > 0');
@@ -98,206 +334,5 @@ export class ProductoService {
     }
     return { ok: true };
   }
-  
-
-
-async create(dto: CreateProductoDto): Promise<Producto> {
-  // 🔧 Normalización básica
-  dto.nombre = dto.nombre?.trim();
-  dto.sku = (dto.sku?.trim() || this.generateSku(dto.nombre)).toUpperCase();
-  dto.descripcion = dto.descripcion?.trim();
-  dto.barcode = dto.barcode?.trim();
-
-  // 🔎 Lookups iniciales
-  const [existingSku, existingBarcode] = await Promise.all([
-    this.repo.findOne({ where: { sku: dto.sku } }),
-    dto.barcode ? this.repo.findOne({ where: { barcode: dto.barcode } }) : Promise.resolve(null),
-  ]);
-
-  // 🧩 Si hay SKU existente y no es el mismo registro del barcode hallado, es conflicto
-  if (existingSku && (!existingBarcode || existingSku.id !== existingBarcode.id)) {
-    throw new ConflictException(`El producto con SKU "${dto.sku}" ya existe.`);
-  }
-
-  // 🔍 Si existe el barcode
-  if (existingBarcode) {
-    if (existingBarcode.activo) {
-      // Ya hay uno activo con ese código de barras
-      throw new ConflictException(
-        `Ya existe un producto activo con ese código de barras. (ID ${existingBarcode.id}, Nombre: "${existingBarcode.nombre}")`
-      );
-    }
-
-    // ♻️ Reactivar y actualizar SOLO lo que venga en el DTO
-    existingBarcode.nombre = dto.nombre; // requerido
-
-    if (dto.descripcion !== undefined) {
-      existingBarcode.descripcion = dto.descripcion; // puede ser string o undefined
-    }
-
-    // Tenés columnas crudas *_id, así que asignamos IDs directamente
-    if (dto.unidad_id !== undefined) {
-      existingBarcode.unidad_id = dto.unidad_id;
-    }
-    if (dto.categoria_id !== undefined) {
-      existingBarcode.categoria_id = dto.categoria_id;
-    }
-
-    // SKU ya validado arriba para no chocar con terceros
-    if (dto.sku !== undefined) {
-      existingBarcode.sku = dto.sku;
-    }
-
-    if (dto.precioBase !== undefined) {
-      existingBarcode.precioBase = dto.precioBase;
-    }
-
-    // Por si el inactivo tenía barcode nulo y ahora viene uno válido
-    if (dto.barcode !== undefined) {
-      if (dto.barcode !== undefined && dto.barcode !== null) {
-        existingBarcode.barcode = dto.barcode;
-      }
-    }
-
-    existingBarcode.activo = true; // reactivamos
-    // No seteamos updated_at: lo maneja @UpdateDateColumn
-
-    // Guardamos y devolvemos
-    return this.repo.save(existingBarcode);
-  }
-
-  // ✅ Crear producto normalmente (sin barcode existente)
-  const nuevo = this.repo.create({
-    sku: dto.sku,
-    nombre: dto.nombre,
-    descripcion: dto.descripcion ?? null,
-    unidad_id: dto.unidad_id,
-    categoria_id: dto.categoria_id ?? null,
-    precioBase: dto.precioBase,
-    barcode: dto.barcode ?? null,
-    activo: true,
-  } as Partial<Producto>);
-
-  return this.repo.save(nuevo) as unknown as Promise<Producto>;
-}
-
-
-
-  async findOne(id: number): Promise<Producto> {
-  const idParsed = Number(id);
-
-  // Si el ID no es un número entero válido, devolvemos un producto vacío
-  if (!Number.isInteger(idParsed)) {
-    return this.getDefaultProducto();
-  }
-
-  const prod = await this.repo.findOne({
-    where: { id: idParsed },
-    relations: ['unidad', 'categoria'],
-  });
-
-  return prod ?? this.getDefaultProducto();
-}
-  private getDefaultProducto(): Producto {
-    const defaultProducto = new Producto();
-    defaultProducto.id = -1; // ID inválido
-    defaultProducto.nombre = 'Producto no encontrado';
-    defaultProducto.sku = 'N/A';
-    defaultProducto.barcode = 'N/A';
-    return defaultProducto;
-  }
-
-  
-
-  async update(id: number, dto: UpdateProductoDto): Promise<Producto> {
-    await this.repo.update(id, dto);
-    return this.findOne(id);
-  }
-
-  async remove(id: number): Promise<void> {
-    const res = await this.repo.delete(id);
-    if (res.affected === 0) throw new NotFoundException(`Producto ${id} no encontrado`);
-  }
-
-  // src/producto/producto.service.ts
-  async findByBarcode(barcode: string): Promise<Producto> {
-    const p = await this.repo.findOne({ where: { barcode } });
-    if (!p) throw new NotFoundException(`No existe producto con barcode ${barcode}`);
-    return p;
-  }
-
-
-async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
-  const { nombre, sku, barcode, categoriaId, unidadId, conStock, almacenId } = filtros;
-
-  const query = this.repo.createQueryBuilder('producto')
-    .leftJoinAndSelect('producto.unidad', 'unidad')
-    .leftJoinAndSelect('producto.categoria', 'categoria')
-    .leftJoinAndSelect('producto.stock', 'stock')
-    .leftJoinAndMapOne('stock.almacen', 'stock.almacen', 'almacen')
-    .where('producto.activo = true'); // si usás borrado lógico
-
-  if (nombre) {
-    query.andWhere('producto.nombre ILIKE :nombre', { nombre: `%${nombre}%` });
-  }
-
-  if (sku) {
-    query.andWhere('producto.sku = :sku', { sku });
-  }
-
-  if (barcode) {
-    query.andWhere('producto.barcode = :barcode', { barcode });
-  }
-
-  if (categoriaId !== undefined && !isNaN(parseInt(categoriaId))) {
-    query.andWhere('producto.categoria_id = :categoriaId', { categoriaId: parseInt(categoriaId) });
-  }
-
-  if (unidadId !== undefined && !isNaN(parseInt(unidadId))) {
-    query.andWhere('producto.unidad_id = :unidadId', { unidadId: parseInt(unidadId) });
-  }
-
-  if (almacenId !== undefined && !isNaN(parseInt(almacenId))) {
-    query.andWhere('stock.almacen_id = :almacenId', { almacenId: parseInt(almacenId) });
-  }
-
-  const conStockBool = conStock === 'true';
-  if (conStockBool) {
-    query.andWhere('stock.cantidad > 0');
-  }
-
-
-  const productos = await query.getMany();
-  // Si viene almacenId, resolvemos precio final agregando override si existe.
-    if (almacenId && productos.length) {
-      const ids = productos.map(p => p.id);
-      const overrides = await this.ppaRepo.find({
-        where: { producto_id: In(ids), almacen_id: Number(almacenId) },
-      });
-      const mapOverride = new Map<number, number>();
-      overrides.forEach(o => mapOverride.set(o.producto_id, Number(o.precio)));
-
-      // Adjuntamos un campo "precioFinal" a cada objeto (sin tocar el schema de la entidad)
-      for (const p of productos) {
-        (p as any).precioFinal =
-          mapOverride.get(p.id) ?? Number(p.precioBase ?? 0);
-      }
-    } else {
-      // Si no vino almacen, devolvemos precioBase como precioFinal para consistencia
-      for (const p of productos) {
-        (p as any).precioFinal = Number(p.precioBase ?? 0);
-      }
-    }
-  return productos;
-}
-
-  
-
-
-async borrarLogicamente(id: number): Promise<Producto> {
-  const producto = await this.findOne(id);
-  producto.activo = false;
-  return this.repo.save(producto);
-}
 
 }

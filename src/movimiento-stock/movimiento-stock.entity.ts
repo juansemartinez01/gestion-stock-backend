@@ -36,8 +36,8 @@ export class MovimientoStock {
   @JoinColumn({ name: 'destino_almacen' })
   almacenDestino?: Almacen;
 
-  @Column({ type: 'int' })
-  cantidad: number;
+  @Column({ type: 'int', nullable: true }) cantidad?: number | null; // piezas
+  @Column({ type: 'numeric', precision: 18, scale: 3, nullable: true }) cantidad_gramos?: string | null; // gramos
 
   @Column({ length: 20 })
   tipo: 'entrada' | 'salida' | 'traspaso' | 'insumo'; 
@@ -64,4 +64,7 @@ export class MovimientoStock {
 
   @Column({ name: 'precio_total', type: 'decimal', precision: 12, scale: 2, nullable: true })
   precioTotal?: number;
+
+  
+
 }

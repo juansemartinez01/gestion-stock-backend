@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MovimientoStock } from './movimiento-stock.entity';
@@ -47,34 +47,32 @@ export class MovimientoStockService {
     .leftJoin('movimiento.almacenOrigen', 'almacenOrigen')
     .leftJoin('movimiento.almacenDestino', 'almacenDestino')
     .select([
-      'movimiento.id',
-      'movimiento.producto_id',
-      'movimiento.origen_almacen',
-      'movimiento.destino_almacen',
-      'movimiento.cantidad',
-      'movimiento.tipo',
-      'movimiento.fecha',
-      'movimiento.usuario_id',
-      'movimiento.motivo',
-      'movimiento.proveedor_id',
-      'movimiento.precio_unitario',
-      'movimiento.precio_total',
+    'movimiento.id',
+    'movimiento.producto_id',
+    'movimiento.origen_almacen',
+    'movimiento.destino_almacen',
+    'movimiento.cantidad',
+    'movimiento.cantidad_gramos',  // 👈 incluir gramos
+    'movimiento.tipo',
+    'movimiento.fecha',
+    'movimiento.usuario_id',
+    'movimiento.motivo',
+    'movimiento.proveedor_id',
+    'movimiento.precioUnitario',   // 👈 usar nombre de propiedad
+    'movimiento.precioTotal',      // 👈 idem
+    'producto.id',
+    'producto.nombre',
+    'producto.precioBase',
+    'unidad.nombre',
+    'categoria.nombre',
+    'almacenOrigen.id',
+    'almacenOrigen.nombre',
+    'almacenOrigen.capacidad',
+    'almacenDestino.id',
+    'almacenDestino.nombre',
+    'almacenDestino.capacidad',
+  ])
 
-      'producto.id',
-      'producto.nombre',
-      'producto.precioBase',
-
-      'unidad.nombre',
-      'categoria.nombre',
-
-      'almacenOrigen.id',
-      'almacenOrigen.nombre',
-      'almacenOrigen.capacidad',
-
-      'almacenDestino.id',
-      'almacenDestino.nombre',
-      'almacenDestino.capacidad',
-    ])
     .skip((page - 1) * limit)
     .take(limit);
 
@@ -124,14 +122,65 @@ export class MovimientoStockService {
   }
 
   create(dto: CreateMovimientoStockDto): Promise<MovimientoStock> {
-    const mov = this.repo.create(dto);
-    return this.repo.save(mov);
+  // Validaciones mínimas por tipo (por si algún request se saltea el DTO)
+  if (dto.tipo === 'entrada') {
+    if (!dto.destino_almacen) {
+      throw new BadRequestException('Para una ENTRADA debe indicarse destino_almacen.');
+    }
+    dto.origen_almacen = undefined;
+  }
+  if (dto.tipo === 'salida' || dto.tipo === 'insumo') {
+    if (!dto.origen_almacen) {
+      throw new BadRequestException(`Para una ${dto.tipo.toUpperCase()} debe indicarse origen_almacen.`);
+    }
+    dto.destino_almacen = undefined;
+  }
+  if (dto.tipo === 'traspaso') {
+    if (!dto.origen_almacen || !dto.destino_almacen) {
+      throw new BadRequestException('Para un TRASPASO se requieren origen_almacen y destino_almacen.');
+    }
+    if (dto.origen_almacen === dto.destino_almacen) {
+      throw new BadRequestException('En un TRASPASO, origen_almacen y destino_almacen deben ser distintos.');
+    }
   }
 
+  // Normalizar gramos a string con 3 decimales (NUMERIC)
+  const cantidadGramosStr =
+    dto.cantidad_gramos !== undefined && dto.cantidad_gramos !== null
+      ? Number(dto.cantidad_gramos).toFixed(3)
+      : undefined;
+
+  // (Opcional) autocalcular precioTotal si no viene
+  const precioTotalCalc =
+    dto.precioTotal ?? (
+      dto.precioUnitario != null
+        ? Number(
+            ((dto.cantidad ?? 0) + (dto.cantidad_gramos ? dto.cantidad_gramos : 0)) // si querés, cambialo para usar SOLO la base que aplique
+            .toFixed(3)
+          ) * Number(dto.precioUnitario.toFixed(2))
+        : undefined
+    );
+
+  const mov = this.repo.create({
+    ...dto,
+    cantidad_gramos: cantidadGramosStr,     // 👈 string (NUMERIC)
+    precioTotal: precioTotalCalc,           // 👈 opcional
+  } as Partial<MovimientoStock>);
+
+  return this.repo.save(mov as MovimientoStock);
+}
+
   async update(id: number, dto: UpdateMovimientoStockDto): Promise<MovimientoStock> {
-    await this.repo.update(id, dto as any);
-    return this.findOne(id);
+  const patch: any = { ...dto };
+
+  if (dto.cantidad_gramos !== undefined && dto.cantidad_gramos !== null) {
+    patch.cantidad_gramos = Number(dto.cantidad_gramos).toFixed(3); // 👈 string
   }
+
+  await this.repo.update(id, patch);
+  return this.findOne(id);
+}
+
 
   async remove(id: number): Promise<void> {
     const res = await this.repo.delete(id);

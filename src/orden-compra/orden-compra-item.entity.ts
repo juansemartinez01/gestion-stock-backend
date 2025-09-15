@@ -22,8 +22,11 @@ export class OrdenCompraItem {
   @JoinColumn({ name: 'producto_id' })
   producto: Producto;
 
-  @Column('int')
-  cantidad: number;
+  @Column('int', { nullable: true })
+  cantidad: number | null;
+
+  @Column('numeric', { precision: 12, scale: 3, nullable: true })
+  cantidad_gramos: string | null;
 
   @Column('numeric')
   precioUnitario: number;

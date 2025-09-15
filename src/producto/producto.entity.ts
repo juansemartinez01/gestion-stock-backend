@@ -22,7 +22,7 @@ export class Producto {
   @Column({ name: 'unidad_id' })
   unidad_id: number;
 
-  @ManyToOne(() => Unidad)
+  @ManyToOne(() => Unidad, { nullable: false })
   @JoinColumn({ name: 'unidad_id' })
   unidad: Unidad;
 
@@ -55,5 +55,8 @@ export class Producto {
 
   @Column({ type: 'boolean', default: true })
 activo: boolean;
+
+@Column({ type: 'boolean', name: 'es_por_gramos', default: false })
+es_por_gramos: boolean;
 
 }
