@@ -146,6 +146,7 @@ async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
       precioBase: dto.precioBase,
       barcode: dto.barcode,
       unidad,
+      categoria_id: dto.categoria_id,
       es_por_gramos: this.esGramos(unidad),
     });
   return this.repo.save(nuevo);
