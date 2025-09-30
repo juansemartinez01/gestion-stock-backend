@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, UpdateDateColumn } from 'typeorm';
 import { Producto } from '../producto/producto.entity';
 import { Almacen } from '../almacen/almacen.entity';
 
@@ -23,4 +23,7 @@ export class ProductoPrecioAlmacen {
 
   @Column({ type: 'varchar', length: 10, default: 'ARS' })
   moneda: string;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updated_at: Date;
 }

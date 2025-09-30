@@ -33,8 +33,6 @@ export class Producto {
   @JoinColumn({ name: 'categoria_id' })
   categoria?: Categoria;
 
-  
-
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
@@ -44,19 +42,21 @@ export class Producto {
   @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
   barcode: string;
 
-   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-   precioBase: number;
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  precioBase: number;
 
-   @OneToMany(() => OrdenCompraItem, item => item.producto)
-    compras: OrdenCompraItem[];
+  @OneToMany(() => OrdenCompraItem, (item) => item.producto)
+  compras: OrdenCompraItem[];
 
-      @OneToMany(() => StockActual, stock => stock.producto)
+  @OneToMany(() => StockActual, (stock) => stock.producto)
   stock: StockActual[];
 
   @Column({ type: 'boolean', default: true })
-activo: boolean;
+  activo: boolean;
 
-@Column({ type: 'boolean', name: 'es_por_gramos', default: false })
-es_por_gramos: boolean;
+  @Column({ type: 'boolean', name: 'es_por_gramos', default: false })
+  es_por_gramos: boolean;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  precio_updated_at: Date;
 }

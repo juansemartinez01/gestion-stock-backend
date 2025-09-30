@@ -47,33 +47,37 @@ async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
 
   
   async findAll(): Promise<Producto[]> {
-  return this.repo.createQueryBuilder('producto')
-    .leftJoinAndSelect('producto.unidad', 'unidad')
-    .leftJoinAndSelect('producto.categoria', 'categoria')
-    .select([
-      'producto.id',
-      'producto.sku',
-      'producto.nombre',
-      'producto.descripcion',
-      'producto.unidad_id',
-      'producto.categoria_id',
-      'producto.created_at',
-      'producto.updated_at',
-      'producto.barcode',
-      'producto.precioBase',
-      'producto.activo',
-      // ya lo tenías, lo dejamos
-      'producto.es_por_gramos',
-      'unidad.id',
-      'unidad.nombre',
-      'unidad.abreviatura',
-      'categoria.id',
-      'categoria.nombre',
-      'categoria.descripcion',
-    ])
-    // 👇 fuerza la inclusión del flag en el mapeo a entidad
-    .addSelect('producto.es_por_gramos')
-    .getMany();
+  return (
+    this.repo
+      .createQueryBuilder('producto')
+      .leftJoinAndSelect('producto.unidad', 'unidad')
+      .leftJoinAndSelect('producto.categoria', 'categoria')
+      .select([
+        'producto.id',
+        'producto.sku',
+        'producto.nombre',
+        'producto.descripcion',
+        'producto.unidad_id',
+        'producto.categoria_id',
+        'producto.created_at',
+        'producto.updated_at',
+        'producto.barcode',
+        'producto.precioBase',
+        'producto.activo',
+        'producto.precio_updated_at',
+        // ya lo tenías, lo dejamos
+        'producto.es_por_gramos',
+        'unidad.id',
+        'unidad.nombre',
+        'unidad.abreviatura',
+        'categoria.id',
+        'categoria.nombre',
+        'categoria.descripcion',
+      ])
+      // 👇 fuerza la inclusión del flag en el mapeo a entidad
+      .addSelect('producto.es_por_gramos')
+      .getMany()
+  );
 }
 
 
@@ -140,15 +144,16 @@ async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
 
   // ✅ Crear producto normalmente
   const nuevo = this.repo.create({
-      sku: dto.sku,
-      nombre: dto.nombre,
-      descripcion: dto.descripcion,
-      precioBase: dto.precioBase,
-      barcode: dto.barcode,
-      unidad,
-      categoria_id: dto.categoria_id,
-      es_por_gramos: this.esGramos(unidad),
-    });
+    sku: dto.sku,
+    nombre: dto.nombre,
+    descripcion: dto.descripcion,
+    precioBase: dto.precioBase,
+    barcode: dto.barcode,
+    unidad,
+    categoria_id: dto.categoria_id,
+    es_por_gramos: this.esGramos(unidad),
+    ...(dto.precioBase != null ? { precio_updated_at: new Date() } : {}),
+  });
   return this.repo.save(nuevo);
 }
 
@@ -190,14 +195,20 @@ async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
       unidad = unidadResult;
       es_por_gramos = this.esGramos(unidad);
     }
-    await this.repo.update(
-      { id },
-      {
-        ...dto,
-        ...(unidad ? { unidad } : {}),
-        ...(es_por_gramos !== undefined ? { es_por_gramos } : {}),
-      } as any,
-    );
+
+    const setPrecioUpdated = Object.prototype.hasOwnProperty.call(
+      dto,
+      'precioBase',
+    )
+      ? { precio_updated_at: new Date() }
+      : {};
+
+    await this.repo.update({ id }, {
+      ...dto,
+      ...(unidad ? { unidad } : {}),
+      ...(es_por_gramos !== undefined ? { es_por_gramos } : {}),
+      ...setPrecioUpdated,
+    } as any);
 
     const producto = await this.repo.findOne({ where: { id }, relations: ['unidad'] });
     if (!producto) {
@@ -223,11 +234,13 @@ async getPrecioFinal(productoId: number, almacenId?: number): Promise<number> {
 async buscarConFiltros(filtros: BuscarProductoDto): Promise<Producto[]> {
   const { nombre, sku, barcode, categoriaId, unidadId, conStock, almacenId } = filtros;
 
-  const query = this.repo.createQueryBuilder('producto')
+  const query = this.repo
+    .createQueryBuilder('producto')
     .leftJoinAndSelect('producto.unidad', 'unidad')
     .leftJoinAndSelect('producto.categoria', 'categoria')
     .leftJoinAndSelect('producto.stock', 'stock')
     .leftJoinAndMapOne('stock.almacen', 'stock.almacen', 'almacen')
+    .addSelect('producto.precio_updated_at')
     .where('producto.activo = true')
     // 👇 aseguramos que venga el flag (tu lógica de gramos)
     .addSelect('producto.es_por_gramos');
@@ -312,9 +325,12 @@ async borrarLogicamente(id: number): Promise<Producto> {
 
     const current = await this.ppaRepo.findOne({ where: { producto_id, almacen_id } });
 
+    
+
     if (current) {
       current.precio = String(precio);
       if (moneda) current.moneda = moneda;
+      await this.repo.update(producto_id, { precio_updated_at: new Date() });
       return this.ppaRepo.save(current);
     } else {
       const nuevo = this.ppaRepo.create({
@@ -323,7 +339,9 @@ async borrarLogicamente(id: number): Promise<Producto> {
         precio: String(precio),
         moneda: moneda ?? 'ARS',
       });
+      await this.repo.update(producto_id, { precio_updated_at: new Date() });
       return this.ppaRepo.save(nuevo);
+      
     }
   }
 
