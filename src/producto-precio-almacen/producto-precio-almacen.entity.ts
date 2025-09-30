@@ -24,6 +24,6 @@ export class ProductoPrecioAlmacen {
   @Column({ type: 'varchar', length: 10, default: 'ARS' })
   moneda: string;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz', nullable: true })
   updated_at: Date;
 }
