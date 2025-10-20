@@ -1,31 +1,19 @@
-# Stage 1: build
-FROM node:18-alpine AS builder
-
-WORKDIR /usr/src/app
-
-# Copiamos deps y lockfile para cache
+# ---- build stage ----
+FROM node:20-alpine AS build
+WORKDIR /app
 COPY package*.json ./
 RUN npm ci
-
-# Copiamos el resto del código y compilamos
 COPY . .
 RUN npm run build
 
-# Stage 2: producción
-FROM node:18-alpine
-
-WORKDIR /usr/src/app
-
-# Sólo copiamos lo necesario: build + package.json + node_modules de prod
-COPY --from=builder /usr/src/app/dist ./dist
-COPY --from=builder /usr/src/app/package.json ./
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-
-# Variables de entorno
+# ---- production stage ----
+FROM node:20-alpine
+WORKDIR /app
 ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
 
-# Puerto expuesto
+# Exponer el puerto
 EXPOSE 3000
-
-# Comando de arranque
 CMD ["node", "dist/main.js"]
