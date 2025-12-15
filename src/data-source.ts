@@ -10,14 +10,15 @@ import { DataSource } from 'typeorm';
 
 export default new DataSource({
   type: 'postgres',
-  host:   process.env.DB_HOST,
-  port:   Number(process.env.DB_PORT || 5432),
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 5432),
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   // Con __dirname apunta siempre a /.../src cuando corres con ts-node
-  entities:   [__dirname + '/**/*.entity{.ts,.js}'],
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
   synchronize: true,
-  logging:     false,
+  logging: false,
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });

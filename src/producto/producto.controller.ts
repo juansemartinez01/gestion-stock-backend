@@ -16,6 +16,7 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 import { Producto } from './producto.entity';
 import { BuscarProductoDto } from './dto/buscar-producto.dto';
 import { UpsertPrecioDto } from 'src/producto-precio-almacen/dto/upsert-precio.dto';
+import { UpdateProductoCargaRapidaDto } from './dto/update-producto-carga-rapida.dto';
 
 @Controller('productos')
 export class ProductoController {
@@ -50,7 +51,10 @@ export class ProductoController {
     @Param('id', ParseIntPipe) id: number,
     @Query('almacenId') almacenId?: string,
   ) {
-    return this.service.getPrecioFinal(id, almacenId ? Number(almacenId) : undefined);
+    return this.service.getPrecioFinal(
+      id,
+      almacenId ? Number(almacenId) : undefined,
+    );
   }
 
   // ───────────────────────────────────────────────────────────────────
@@ -77,6 +81,11 @@ export class ProductoController {
   @Post()
   create(@Body() dto: CreateProductoDto): Promise<Producto> {
     return this.service.create(dto);
+  }
+
+  @Put('carga-rapida')
+  updateCargaRapida(@Body() dto: UpdateProductoCargaRapidaDto) {
+    return this.service.updateCargaRapida(dto);
   }
 
   @Put(':id')
