@@ -9,7 +9,8 @@ import { CreateVentaMixtaDto } from './dto/create-venta-mixta.dto';
 
 @Controller('ventas')
 export class VentaController {
-  constructor(private readonly service: VentaService,
+  constructor(
+    private readonly service: VentaService,
     private readonly usuarioService: UsuarioService,
   ) {}
 
@@ -20,39 +21,41 @@ export class VentaController {
   }
 
   @Post('mixta')
-async createMixta(@Body() dto: CreateVentaMixtaDto) {
-  const usuario = await this.usuarioService.findOne(dto.usuarioId);
-  return this.service.crearVentaMixta({ ...dto, usuario });
-}
+  async createMixta(@Body() dto: CreateVentaMixtaDto) {
+    const usuario = await this.usuarioService.findOne(dto.usuarioId);
+    return this.service.crearVentaMixta({ ...dto, usuario });
+  }
 
-
-    @Get()
-    async obtenerVentas(
-      @Query('fechaDesde') fechaDesde?: string,
-      @Query('fechaHasta') fechaHasta?: string,
-      @Query('usuarioId') usuarioId?: string,
-      @Query('estado') estado?: string,
-      @Query('almacenId') almacenId?: string, 
-      @Query('tipo') tipo?: 'EFECTIVO' | 'BANCARIZADO',
-      @Query('page') page: string = '1',
-      @Query('limit') limit: string = '50',
-      @Query('ordenCampo') ordenCampo: string = 'fecha',
-      @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
-    ) {
-      return this.service.obtenerTodasConFiltros({
-        fechaDesde,
-        fechaHasta,
-        usuarioId,
-        estado,
-        almacenId,
-        tipo,
-        page: +page,
-        limit: +limit,
-        ordenCampo,
-        ordenDireccion,
-      });
-    }
-
+  @Get()
+  async obtenerVentas(
+    @Query('fechaDesde') fechaDesde?: string,
+    @Query('fechaHasta') fechaHasta?: string,
+    @Query('horaDesde') horaDesde?: string, // ⬅️ nuevo
+    @Query('horaHasta') horaHasta?: string, // ⬅️ nuevo
+    @Query('usuarioId') usuarioId?: string,
+    @Query('estado') estado?: string,
+    @Query('almacenId') almacenId?: string,
+    @Query('tipo') tipo?: 'EFECTIVO' | 'BANCARIZADO',
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+    @Query('ordenCampo') ordenCampo: string = 'fecha',
+    @Query('ordenDireccion') ordenDireccion: 'ASC' | 'DESC' = 'DESC',
+  ) {
+    return this.service.obtenerTodasConFiltros({
+      fechaDesde,
+      fechaHasta,
+      horaDesde, // ⬅️
+      horaHasta, // ⬅️
+      usuarioId,
+      estado,
+      almacenId,
+      tipo,
+      page: +page,
+      limit: +limit,
+      ordenCampo,
+      ordenDireccion,
+    });
+  }
 
   @Get('estadisticas')
   obtenerEstadisticas(@Query() filtros: EstadisticasVentasDto) {
@@ -66,7 +69,6 @@ async createMixta(@Body() dto: CreateVentaMixtaDto) {
   ) {
     return this.service.obtenerTotalPorCategoria(fechaDesde, fechaHasta);
   }
-
 
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -84,11 +86,9 @@ async createMixta(@Body() dto: CreateVentaMixtaDto) {
   }
 
   @Get(':id/completa')
-getVentaCompleta(@Param('id') id: string) {
-  const idNum = parseInt(id, 10);
-  if (isNaN(idNum)) throw new BadRequestException('ID inválido');
-  return this.service.getVentaCompleta(idNum);
-}
-
-  
+  getVentaCompleta(@Param('id') id: string) {
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum)) throw new BadRequestException('ID inválido');
+    return this.service.getVentaCompleta(idNum);
+  }
 }

@@ -22,10 +22,8 @@ export class CreateProductoDto {
   @IsOptional()
   categoria_id?: number;
 
-  
-
   @IsNumber({ maxDecimalPlaces: 2 })
-  precioBase: number; 
+  precioBase: number;
 
   @IsString()
   @IsOptional()
@@ -35,4 +33,10 @@ export class CreateProductoDto {
   @IsBoolean()
   @IsOptional()
   es_por_gramos?: boolean; // en la entidad default=false
+
+  // ⬇️ NUEVO CAMPO
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  proveedorNombre?: string;
 }

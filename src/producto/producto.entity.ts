@@ -59,4 +59,8 @@ export class Producto {
 
   @Column({ type: 'timestamptz', nullable: true })
   precio_updated_at: Date;
+
+  // ⬇️ NUEVO CAMPO
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  proveedorNombre?: string;
 }

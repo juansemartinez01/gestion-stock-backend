@@ -37,143 +37,157 @@ export class VentaService {
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
-  
-    async create(dto: CreateVentaDto & { usuario: Usuario }) {
-  const items: VentaItem[] = [];
-  let total = 0;
+  async create(dto: CreateVentaDto & { usuario: Usuario }) {
+    const items: VentaItem[] = [];
+    let total = 0;
 
-  // 1) Armar items
-  for (const it of dto.items) {
-    const producto = await this.productoService.findOne(it.productoId);
-    if (!producto) throw new NotFoundException(`Producto ${it.productoId} no encontrado`);
+    // 1) Armar items
+    for (const it of dto.items) {
+      const producto = await this.productoService.findOne(it.productoId);
+      if (!producto)
+        throw new NotFoundException(`Producto ${it.productoId} no encontrado`);
 
-    const granel = this.isGranel(producto);
+      const granel = this.isGranel(producto);
 
-    // validar XOR según el tipo
-    if (granel) {
-      if (it.cantidad_gramos === undefined) {
-        throw new Error(`Producto ${producto.id} se vende por gramos: enviar "cantidad_gramos"`);
-      }
-    } else {
-      if (it.cantidad === undefined) {
-        throw new Error(`Producto ${producto.id} se vende por piezas: enviar "cantidad"`);
-      }
-    }
-
-    // calcular subtotal
-    const cantidadKg = granel ? (Number(it.cantidad_gramos) / 1000) : 0;
-    const cantidadPzas = granel ? 0 : Number(it.cantidad);
-    const unidadesFacturadas = granel ? cantidadKg : cantidadPzas; // kg ó unidades
-    const subtotal = this.to2(unidadesFacturadas * Number(it.precioUnitario));
-    total += subtotal;
-
-    // crear item
-    const vi = new VentaItem();
-    vi.producto = producto;
-    vi.cantidad = granel ? null : cantidadPzas;
-    vi.cantidad_gramos = granel ? this.to3(Number(it.cantidad_gramos)).toFixed(3) : null;
-    vi.precioUnitario = Number(it.precioUnitario);
-    vi.subtotal = subtotal;
-
-    items.push(vi);
-  }
-
-  // 2) Promociones (mismo concepto, setear piezas/gramos según producto)
-  if (dto.promociones) {
-    for (const promoItem of dto.promociones) {
-      const promo = await this.promoService.getPromocionById(promoItem.promocionId);
-      if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
-
-      // item "promo" como renglón de cobro
-      const subtotalPromo = this.to2(promo.precioPromo * promoItem.cantidad);
-      total += subtotalPromo;
-
-      const promoVentaItem = new VentaItem();
-      promoVentaItem.producto = null;
-      promoVentaItem.cantidad = promoItem.cantidad;
-      promoVentaItem.cantidad_gramos = null;
-      promoVentaItem.precioUnitario = promo.precioPromo;
-      promoVentaItem.subtotal = subtotalPromo;
-      items.push(promoVentaItem);
-
-      // detallar los productos de la promo (sin precio)
-      for (const p of promo.productos) {
-        const granel = this.isGranel(p.producto);
-        const vi = new VentaItem();
-        vi.producto = p.producto;
-        vi.precioUnitario = 0;
-        vi.subtotal = 0;
-
-        if (granel) {
-          // si tu pivot de promo tiene gramos, usar p.gramos; de lo contrario, definilo
-          const gramosTot = Number(Number(p.cantidad_gramos ?? 0) * promoItem.cantidad);
-          vi.cantidad = null;
-          vi.cantidad_gramos = this.to3(gramosTot).toFixed(3);
-        } else {
-          vi.cantidad = (p.cantidad ?? 0) * promoItem.cantidad;
-          vi.cantidad_gramos = null;
+      // validar XOR según el tipo
+      if (granel) {
+        if (it.cantidad_gramos === undefined) {
+          throw new Error(
+            `Producto ${producto.id} se vende por gramos: enviar "cantidad_gramos"`,
+          );
         }
-        items.push(vi);
+      } else {
+        if (it.cantidad === undefined) {
+          throw new Error(
+            `Producto ${producto.id} se vende por piezas: enviar "cantidad"`,
+          );
+        }
+      }
+
+      // calcular subtotal
+      const cantidadKg = granel ? Number(it.cantidad_gramos) / 1000 : 0;
+      const cantidadPzas = granel ? 0 : Number(it.cantidad);
+      const unidadesFacturadas = granel ? cantidadKg : cantidadPzas; // kg ó unidades
+      const subtotal = this.to2(unidadesFacturadas * Number(it.precioUnitario));
+      total += subtotal;
+
+      // crear item
+      const vi = new VentaItem();
+      vi.producto = producto;
+      vi.cantidad = granel ? null : cantidadPzas;
+      vi.cantidad_gramos = granel
+        ? this.to3(Number(it.cantidad_gramos)).toFixed(3)
+        : null;
+      vi.precioUnitario = Number(it.precioUnitario);
+      vi.subtotal = subtotal;
+
+      items.push(vi);
+    }
+
+    // 2) Promociones (mismo concepto, setear piezas/gramos según producto)
+    if (dto.promociones) {
+      for (const promoItem of dto.promociones) {
+        const promo = await this.promoService.getPromocionById(
+          promoItem.promocionId,
+        );
+        if (!promo)
+          throw new NotFoundException(
+            `Promoción ${promoItem.promocionId} no encontrada`,
+          );
+
+        // item "promo" como renglón de cobro
+        const subtotalPromo = this.to2(promo.precioPromo * promoItem.cantidad);
+        total += subtotalPromo;
+
+        const promoVentaItem = new VentaItem();
+        promoVentaItem.producto = null;
+        promoVentaItem.cantidad = promoItem.cantidad;
+        promoVentaItem.cantidad_gramos = null;
+        promoVentaItem.precioUnitario = promo.precioPromo;
+        promoVentaItem.subtotal = subtotalPromo;
+        items.push(promoVentaItem);
+
+        // detallar los productos de la promo (sin precio)
+        for (const p of promo.productos) {
+          const granel = this.isGranel(p.producto);
+          const vi = new VentaItem();
+          vi.producto = p.producto;
+          vi.precioUnitario = 0;
+          vi.subtotal = 0;
+
+          if (granel) {
+            // si tu pivot de promo tiene gramos, usar p.gramos; de lo contrario, definilo
+            const gramosTot = Number(
+              Number(p.cantidad_gramos ?? 0) * promoItem.cantidad,
+            );
+            vi.cantidad = null;
+            vi.cantidad_gramos = this.to3(gramosTot).toFixed(3);
+          } else {
+            vi.cantidad = (p.cantidad ?? 0) * promoItem.cantidad;
+            vi.cantidad_gramos = null;
+          }
+          items.push(vi);
+        }
       }
     }
-  }
 
-  // 3) Venta + ingreso
-  const almacen = await this.dataSource.getRepository(Almacen).findOneBy({ id: dto.almacenId });
-  if (!almacen) throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
+    // 3) Venta + ingreso
+    const almacen = await this.dataSource
+      .getRepository(Almacen)
+      .findOneBy({ id: dto.almacenId });
+    if (!almacen)
+      throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
 
-  const venta = this.repo.create({
-    usuario: dto.usuario,
-    almacen,
-    items,
-    total: this.to2(total),
-    estado: 'CONFIRMADA',
-    fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
-  });
-  const saved = await this.repo.save(venta);
+    const venta = this.repo.create({
+      usuario: dto.usuario,
+      almacen,
+      items,
+      total: this.to2(total),
+      estado: 'CONFIRMADA',
+      fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
+    });
+    const saved = await this.repo.save(venta);
 
-  await this.ingresoVentaRepo.save({
-    venta: saved,
-    tipo: dto.tipoIngreso, // 'EFECTIVO' | 'BANCARIZADO'
-    monto: saved.total,
-  });
-
-  // 4) Stock + movimientos (piezas/gramos)
-  for (const it of items) {
-    if (!it.producto) continue; // el renglón de promo no descuenta
-
-    const piezas = it.cantidad ?? 0;
-    const gramos = Number(it.cantidad_gramos ?? 0);
-
-    await this.stockService.changeStock(it.producto.id, dto.almacenId, {
-      deltaPiezas: piezas ? -piezas : 0,
-      deltaGramos: gramos ? -gramos : 0,
+    await this.ingresoVentaRepo.save({
+      venta: saved,
+      tipo: dto.tipoIngreso, // 'EFECTIVO' | 'BANCARIZADO'
+      monto: saved.total,
     });
 
-    await this.movService.create({
-      producto_id: it.producto.id,
-      origen_almacen: dto.almacenId,
-      destino_almacen: undefined,
-      cantidad: piezas || undefined,
-      cantidad_gramos: (typeof gramos === 'number' && gramos > 0)
-    ? Number(gramos.toFixed(3))                                             // number (no string)
-    : undefined,
+    // 4) Stock + movimientos (piezas/gramos)
+    for (const it of items) {
+      if (!it.producto) continue; // el renglón de promo no descuenta
 
-      tipo: 'salida',
-      motivo: `Venta #${saved.id}`,
-    });
+      const piezas = it.cantidad ?? 0;
+      const gramos = Number(it.cantidad_gramos ?? 0);
+
+      await this.stockService.changeStock(it.producto.id, dto.almacenId, {
+        deltaPiezas: piezas ? -piezas : 0,
+        deltaGramos: gramos ? -gramos : 0,
+      });
+
+      await this.movService.create({
+        producto_id: it.producto.id,
+        origen_almacen: dto.almacenId,
+        destino_almacen: undefined,
+        cantidad: piezas || undefined,
+        cantidad_gramos:
+          typeof gramos === 'number' && gramos > 0
+            ? Number(gramos.toFixed(3)) // number (no string)
+            : undefined,
+
+        tipo: 'salida',
+        motivo: `Venta #${saved.id}`,
+      });
+    }
+
+    return saved;
   }
-
-  return saved;
-}
-
 
   findAll(): Promise<Venta[]> {
     return this.repo.find();
   }
 
-  
-  
   async findOne(id: number): Promise<Venta> {
     const venta = await this.repo.findOne({ where: { id } });
     if (!venta) {
@@ -182,10 +196,11 @@ export class VentaService {
     return venta;
   }
 
-  async obtenerTodasConFiltros(
-  filtros: {
+  async obtenerTodasConFiltros(filtros: {
     fechaDesde?: string;
     fechaHasta?: string;
+    horaDesde?: string; // ⬅️ nuevo
+    horaHasta?: string; // ⬅️ nuevo
     usuarioId?: string;
     estado?: string;
     almacenId?: string;
@@ -194,151 +209,224 @@ export class VentaService {
     limit?: number;
     ordenCampo?: string;
     ordenDireccion?: 'ASC' | 'DESC';
-  }
-): Promise<{
-  data: any[];
-  total: number;
-  page: number;
-  limit: number;
-}> {
-  const {
-    fechaDesde,
-    fechaHasta,
-    usuarioId,
-    almacenId,
-    estado,
-    tipo, // ✅ nuevo
-    page = 1,
-    limit = 50,
-    ordenCampo = 'fecha',
-    ordenDireccion = 'DESC',
-  } = filtros;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      fechaDesde,
+      fechaHasta,
+      horaDesde, // ⬅️
+      horaHasta, // ⬅️
+      usuarioId,
+      almacenId,
+      estado,
+      tipo, // ✅ nuevo
+      page = 1,
+      limit = 50,
+      ordenCampo = 'fecha',
+      ordenDireccion = 'DESC',
+    } = filtros;
 
-  const query = this.repo.createQueryBuilder('venta')
-    .leftJoin('venta.usuario', 'usuario')
-    .leftJoin('venta.items', 'items')
-    .leftJoin('items.producto', 'producto')
-    .leftJoin('producto.unidad', 'unidad')
-    .leftJoin('producto.categoria', 'categoria')
-    .leftJoin('venta.almacen', 'almacen')
-    .leftJoin('venta.ingresos', 'ingreso') // 👈 importante para acceder a tipo
-    .select([
-      'venta.id',
-      'venta.fecha',
-      'venta.total',
-      'venta.estado',
+    const query = this.repo
+      .createQueryBuilder('venta')
+      .leftJoin('venta.usuario', 'usuario')
+      .leftJoin('venta.items', 'items')
+      .leftJoin('items.producto', 'producto')
+      .leftJoin('producto.unidad', 'unidad')
+      .leftJoin('producto.categoria', 'categoria')
+      .leftJoin('venta.almacen', 'almacen')
+      .leftJoin('venta.ingresos', 'ingreso') // 👈 importante para acceder a tipo
+      .select([
+        'venta.id',
+        'venta.fecha',
+        'venta.total',
+        'venta.estado',
 
-      'usuario.id',
-      'usuario.nombre',
+        'usuario.id',
+        'usuario.nombre',
 
-      'items.id',
-      'items.cantidad',
-      'items.cantidad_gramos',
-      'items.precioUnitario',
-      'items.subtotal',
+        'items.id',
+        'items.cantidad',
+        'items.cantidad_gramos',
+        'items.precioUnitario',
+        'items.subtotal',
 
-      'producto.id',
-      'producto.nombre',
-      'producto.descripcion',
-      'producto.barcode',
-      'producto.precioBase',
+        'producto.id',
+        'producto.nombre',
+        'producto.descripcion',
+        'producto.barcode',
+        'producto.precioBase',
 
-      'unidad.nombre',
-      'categoria.nombre',
+        'unidad.nombre',
+        'categoria.nombre',
 
-      'almacen.id',
-      'almacen.nombre',
+        'almacen.id',
+        'almacen.nombre',
 
-      'ingreso.tipo', // opcional si querés verlo
-      'ingreso.monto'
-    ])
-    .skip((page - 1) * limit)
-    .take(limit);
+        'ingreso.tipo', // opcional si querés verlo
+        'ingreso.monto',
+      ])
+      .skip((page - 1) * limit)
+      .take(limit);
 
-  if (fechaDesde) {
-  const fechaDesdeUtc = moment.tz(fechaDesde, 'America/Argentina/Buenos_Aires').startOf('day').utc().toDate();
-  query.andWhere('venta.fecha >= :fechaDesde', { fechaDesde: fechaDesdeUtc });
-}
+      const tz = 'America/Argentina/Buenos_Aires';
 
-if (fechaHasta) {
-  const fechaHastaUtc = moment.tz(fechaHasta, 'America/Argentina/Buenos_Aires').endOf('day').utc().toDate();
-  query.andWhere('venta.fecha <= :fechaHasta', { fechaHasta: fechaHastaUtc });
-}
+      // ⬇️ fechaDesde + horaDesde
+      if (fechaDesde) {
+        const mInicio = moment.tz(fechaDesde, tz);
 
+        if (horaDesde) {
+          const [h, m] = horaDesde.split(':').map(Number);
+          mInicio
+            .hour(h || 0)
+            .minute(m || 0)
+            .second(0)
+            .millisecond(0);
+        } else {
+          // si no viene horaDesde, uso comienzo del día
+          mInicio.startOf('day');
+        }
 
-  if (usuarioId) {
-    query.andWhere('usuario.id = :usuarioId', { usuarioId });
-  }
+        const fechaDesdeUtc = mInicio.utc().toDate();
+        query.andWhere('venta.fecha >= :fechaDesde', {
+          fechaDesde: fechaDesdeUtc,
+        });
+      }
 
-  if (estado) {
-    const estados = estado.split(',').map(e => e.trim()).filter(Boolean);
-    if (estados.length > 0) {
-      query.andWhere('venta.estado IN (:...estados)', { estados });
+      // ⬇️ fechaHasta + horaHasta
+      if (fechaHasta) {
+        const mFin = moment.tz(fechaHasta, tz);
+
+        if (horaHasta) {
+          const [h, m] = horaHasta.split(':').map(Number);
+          mFin
+            .hour(h || 23)
+            .minute(m || 59)
+            .second(59)
+            .millisecond(999);
+        } else {
+          // si no viene horaHasta, uso fin del día
+          mFin.endOf('day');
+        }
+
+        const fechaHastaUtc = mFin.utc().toDate();
+        query.andWhere('venta.fecha <= :fechaHasta', {
+          fechaHasta: fechaHastaUtc,
+        });
+      }
+
+    if (fechaDesde) {
+      const fechaDesdeUtc = moment
+        .tz(fechaDesde, 'America/Argentina/Buenos_Aires')
+        .startOf('day')
+        .utc()
+        .toDate();
+      query.andWhere('venta.fecha >= :fechaDesde', {
+        fechaDesde: fechaDesdeUtc,
+      });
     }
-  }
 
-  if (almacenId) {
-    const almacenIdNum = parseInt(almacenId, 10);
-    if (!isNaN(almacenIdNum)) {
-      query.andWhere('almacen.id = :almacenId', { almacenId: almacenIdNum });
+    if (fechaHasta) {
+      const fechaHastaUtc = moment
+        .tz(fechaHasta, 'America/Argentina/Buenos_Aires')
+        .endOf('day')
+        .utc()
+        .toDate();
+      query.andWhere('venta.fecha <= :fechaHasta', {
+        fechaHasta: fechaHastaUtc,
+      });
     }
+
+    if (usuarioId) {
+      query.andWhere('usuario.id = :usuarioId', { usuarioId });
+    }
+
+    if (estado) {
+      const estados = estado
+        .split(',')
+        .map((e) => e.trim())
+        .filter(Boolean);
+      if (estados.length > 0) {
+        query.andWhere('venta.estado IN (:...estados)', { estados });
+      }
+    }
+
+    if (almacenId) {
+      const almacenIdNum = parseInt(almacenId, 10);
+      if (!isNaN(almacenIdNum)) {
+        query.andWhere('almacen.id = :almacenId', { almacenId: almacenIdNum });
+      }
+    }
+
+    // ✅ Filtro por tipo de ingreso
+    if (tipo) {
+      query.andWhere('ingreso.tipo = :tipo', { tipo });
+    }
+
+    const camposValidos = ['fecha', 'id', 'estado'];
+    const campoOrdenFinal = camposValidos.includes(ordenCampo)
+      ? ordenCampo
+      : 'fecha';
+
+    query.orderBy(`venta.${campoOrdenFinal}`, ordenDireccion);
+
+    const [ventas, total] = await query.getManyAndCount();
+
+    return {
+      data: ventas,
+      total,
+      page,
+      limit,
+    };
   }
 
-  // ✅ Filtro por tipo de ingreso
-  if (tipo) {
-    query.andWhere('ingreso.tipo = :tipo', { tipo });
+  async getVentaCompleta(id: number): Promise<Venta> {
+    const venta = await this.repo.findOne({
+      where: { id },
+      relations: [
+        'usuario',
+        'almacen',
+        'items',
+        'items.producto',
+        'items.producto.unidad',
+        'items.producto.categoria',
+        'ingresos',
+      ],
+    });
+
+    if (!venta) {
+      throw new NotFoundException(`Venta con ID ${id} no encontrada`);
+    }
+
+    return venta;
   }
 
-  const camposValidos = ['fecha', 'id', 'estado'];
-  const campoOrdenFinal = camposValidos.includes(ordenCampo) ? ordenCampo : 'fecha';
-
-  query.orderBy(`venta.${campoOrdenFinal}`, ordenDireccion);
-
-  const [ventas, total] = await query.getManyAndCount();
-
-  return {
-    data: ventas,
-    total,
-    page,
-    limit,
-  };
-}
-
-async getVentaCompleta(id: number): Promise<Venta> {
-  const venta = await this.repo.findOne({
-    where: { id },
-    relations: [
-      'usuario',
-      'almacen',
-      'items',
-      'items.producto',
-      'items.producto.unidad',
-      'items.producto.categoria',
-      'ingresos',
-    ],
-  });
-
-  if (!venta) {
-    throw new NotFoundException(`Venta con ID ${id} no encontrada`);
-  }
-
-  return venta;
-}
-
-
-async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
+  async obtenerEstadisticasVentas(filtros: EstadisticasVentasDto) {
     const { fechaDesde, fechaHasta } = filtros;
     const condiciones = [];
     const fechaDesdeUtc = fechaDesde
-  ? moment.tz(fechaDesde, 'America/Argentina/Buenos_Aires').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss')
-  : null;
-const fechaHastaUtc = fechaHasta
-  ? moment.tz(fechaHasta, 'America/Argentina/Buenos_Aires').endOf('day').utc().format('YYYY-MM-DD HH:mm:ss')
-  : null;
+      ? moment
+          .tz(fechaDesde, 'America/Argentina/Buenos_Aires')
+          .startOf('day')
+          .utc()
+          .format('YYYY-MM-DD HH:mm:ss')
+      : null;
+    const fechaHastaUtc = fechaHasta
+      ? moment
+          .tz(fechaHasta, 'America/Argentina/Buenos_Aires')
+          .endOf('day')
+          .utc()
+          .format('YYYY-MM-DD HH:mm:ss')
+      : null;
 
-if (fechaDesdeUtc) condiciones.push(`v.fecha >= '${fechaDesdeUtc}'`);
-if (fechaHastaUtc) condiciones.push(`v.fecha <= '${fechaHastaUtc}'`);
-    const whereClause = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+    if (fechaDesdeUtc) condiciones.push(`v.fecha >= '${fechaDesdeUtc}'`);
+    if (fechaHastaUtc) condiciones.push(`v.fecha <= '${fechaHastaUtc}'`);
+    const whereClause = condiciones.length
+      ? `WHERE ${condiciones.join(' AND ')}`
+      : '';
 
     // Ingresos totales y total ventas
     const resumen = await this.dataSource.query(`
@@ -367,11 +455,17 @@ if (fechaHastaUtc) condiciones.push(`v.fecha <= '${fechaHastaUtc}'`);
       GROUP BY p.id;
     `);
 
-    const productoMasVendido = productos.reduce((max: { cantidadVendida: number; }, p: { cantidadVendida: number; }) =>
-      p.cantidadVendida > max.cantidadVendida ? p : max, productos[0] || null);
+    const productoMasVendido = productos.reduce(
+      (max: { cantidadVendida: number }, p: { cantidadVendida: number }) =>
+        p.cantidadVendida > max.cantidadVendida ? p : max,
+      productos[0] || null,
+    );
 
-    const productoMasIngresos = productos.reduce((max: { ingresos: number; }, p: { ingresos: number; }) =>
-      p.ingresos > max.ingresos ? p : max, productos[0] || null);
+    const productoMasIngresos = productos.reduce(
+      (max: { ingresos: number }, p: { ingresos: number }) =>
+        p.ingresos > max.ingresos ? p : max,
+      productos[0] || null,
+    );
 
     const topProductosCantidad = [...productos]
       .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
@@ -407,25 +501,28 @@ if (fechaHastaUtc) condiciones.push(`v.fecha <= '${fechaHastaUtc}'`);
   }
 
   // src/venta/venta.service.ts
-async actualizarEstado(id: number, dto: UpdateEstadoVentaDto): Promise<Venta> {
-  const venta = await this.repo.findOneBy({ id });
+  async actualizarEstado(
+    id: number,
+    dto: UpdateEstadoVentaDto,
+  ): Promise<Venta> {
+    const venta = await this.repo.findOneBy({ id });
 
-  if (!venta) {
-    throw new Error(`No se encontró una venta con ID ${id}`);
+    if (!venta) {
+      throw new Error(`No se encontró una venta con ID ${id}`);
+    }
+
+    venta.estado = dto.estado;
+
+    return this.repo.save(venta);
   }
 
-  venta.estado = dto.estado;
+  // estadisticas.service.ts
+  async obtenerTotalPorCategoria(fechaDesde?: string, fechaHasta?: string) {
+    const query = this.dataSource.createQueryRunner();
+    await query.connect();
 
-  return this.repo.save(venta);
-}
-
-// estadisticas.service.ts
-async obtenerTotalPorCategoria(fechaDesde?: string, fechaHasta?: string) {
-  const query = this.dataSource.createQueryRunner();
-  await query.connect();
-
-  const resultados = await query.query(
-    `
+    const resultados = await query.query(
+      `
     SELECT
       c.id AS "categoriaId",
       c.nombre AS "categoriaNombre",
@@ -439,156 +536,170 @@ async obtenerTotalPorCategoria(fechaDesde?: string, fechaHasta?: string) {
     GROUP BY c.id, c.nombre
     ORDER BY "totalGenerado" DESC;
     `,
-    [fechaDesde || null, fechaHasta || null],
-  );
+      [fechaDesde || null, fechaHasta || null],
+    );
 
-  await query.release();
-  return resultados;
-}
-
-async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
-  const items: VentaItem[] = [];
-  let total = 0;
-
-  // helpers locales
-  const isGranel = (prod: any) =>
-    prod?.es_por_gramos === true || prod?.unidad?.codigo === 'g';
-  const to2 = (n: number) => Number(n.toFixed(2));
-  const to3 = (n: number) => Number(n.toFixed(3));
-
-  // 1) Ítems sueltos (no promo)
-  for (const it of dto.items) {
-    const producto = await this.productoService.findOne(it.productoId);
-    if (!producto) throw new NotFoundException(`Producto ${it.productoId} no encontrado`);
-
-    const granel = isGranel(producto);
-
-    // Validación XOR según tipo
-    if (granel && it.cantidad_gramos === undefined) {
-      throw new Error(`Producto ${producto.id} se vende por gramos: enviar "cantidad_gramos"`);
-    }
-    if (!granel && it.cantidad === undefined) {
-      throw new Error(`Producto ${producto.id} se vende por piezas: enviar "cantidad"`);
-    }
-
-    // Calcular subtotal
-    const unidadesFacturadas = granel
-      ? (Number(it.cantidad_gramos) / 1000) // kg
-      : Number(it.cantidad);               // unidades
-    const subtotal = to2(unidadesFacturadas * Number(it.precioUnitario));
-    total += subtotal;
-
-    // Armar item
-    const ventaItem = new VentaItem();
-    ventaItem.producto = producto;
-    ventaItem.cantidad = granel ? null : Number(it.cantidad);
-    ventaItem.cantidad_gramos = granel
-      ? to3(Number(it.cantidad_gramos)).toFixed(3)
-      : null;
-    ventaItem.precioUnitario = Number(it.precioUnitario); // kg o unidad, según corresponda
-    ventaItem.subtotal = subtotal;
-
-    items.push(ventaItem);
+    await query.release();
+    return resultados;
   }
 
-  // 2) Promociones (ítem de cobro + detalle de productos incluidos sin precio)
-  if (dto.promociones) {
-    for (const promoItem of dto.promociones) {
-      const promo = await this.promoService.getPromocionById(promoItem.promocionId);
-      if (!promo) throw new NotFoundException(`Promoción ${promoItem.promocionId} no encontrada`);
+  async crearVentaMixta(dto: CreateVentaMixtaDto & { usuario: Usuario }) {
+    const items: VentaItem[] = [];
+    let total = 0;
 
-      // Renglón de cobro de la promo
-      const subtotalPromo = to2(promo.precioPromo * promoItem.cantidad);
-      total += subtotalPromo;
+    // helpers locales
+    const isGranel = (prod: any) =>
+      prod?.es_por_gramos === true || prod?.unidad?.codigo === 'g';
+    const to2 = (n: number) => Number(n.toFixed(2));
+    const to3 = (n: number) => Number(n.toFixed(3));
 
-      const promoVentaItem = new VentaItem();
-      promoVentaItem.producto = null; // ítem "abstracto" de la promo
-      promoVentaItem.cantidad = promoItem.cantidad; // cantidad de combos
-      promoVentaItem.cantidad_gramos = null;
-      promoVentaItem.precioUnitario = promo.precioPromo;
-      promoVentaItem.subtotal = subtotalPromo;
-      items.push(promoVentaItem);
+    // 1) Ítems sueltos (no promo)
+    for (const it of dto.items) {
+      const producto = await this.productoService.findOne(it.productoId);
+      if (!producto)
+        throw new NotFoundException(`Producto ${it.productoId} no encontrado`);
 
-      // Desglose de productos reales incluidos (sin precio)
-      for (const p of promo.productos) {
-        const prod = p.producto;
-        const granel = isGranel(prod);
+      const granel = isGranel(producto);
 
-        const productoItem = new VentaItem();
-        productoItem.producto = prod;
-        productoItem.precioUnitario = 0;
-        productoItem.subtotal = 0;
+      // Validación XOR según tipo
+      if (granel && it.cantidad_gramos === undefined) {
+        throw new Error(
+          `Producto ${producto.id} se vende por gramos: enviar "cantidad_gramos"`,
+        );
+      }
+      if (!granel && it.cantidad === undefined) {
+        throw new Error(
+          `Producto ${producto.id} se vende por piezas: enviar "cantidad"`,
+        );
+      }
 
-        if (granel) {
-          // si tu pivot de promo tiene 'gramos', úsalo; si no, cae en 0
-          const gramosTot = Number(p.cantidad_gramos ?? 0) * promoItem.cantidad;
-          productoItem.cantidad = null;
-          productoItem.cantidad_gramos = to3(gramosTot).toFixed(3);
-        } else {
-          productoItem.cantidad = (p.cantidad ?? 0) * promoItem.cantidad;
-          productoItem.cantidad_gramos = null;
+      // Calcular subtotal
+      const unidadesFacturadas = granel
+        ? Number(it.cantidad_gramos) / 1000 // kg
+        : Number(it.cantidad); // unidades
+      const subtotal = to2(unidadesFacturadas * Number(it.precioUnitario));
+      total += subtotal;
+
+      // Armar item
+      const ventaItem = new VentaItem();
+      ventaItem.producto = producto;
+      ventaItem.cantidad = granel ? null : Number(it.cantidad);
+      ventaItem.cantidad_gramos = granel
+        ? to3(Number(it.cantidad_gramos)).toFixed(3)
+        : null;
+      ventaItem.precioUnitario = Number(it.precioUnitario); // kg o unidad, según corresponda
+      ventaItem.subtotal = subtotal;
+
+      items.push(ventaItem);
+    }
+
+    // 2) Promociones (ítem de cobro + detalle de productos incluidos sin precio)
+    if (dto.promociones) {
+      for (const promoItem of dto.promociones) {
+        const promo = await this.promoService.getPromocionById(
+          promoItem.promocionId,
+        );
+        if (!promo)
+          throw new NotFoundException(
+            `Promoción ${promoItem.promocionId} no encontrada`,
+          );
+
+        // Renglón de cobro de la promo
+        const subtotalPromo = to2(promo.precioPromo * promoItem.cantidad);
+        total += subtotalPromo;
+
+        const promoVentaItem = new VentaItem();
+        promoVentaItem.producto = null; // ítem "abstracto" de la promo
+        promoVentaItem.cantidad = promoItem.cantidad; // cantidad de combos
+        promoVentaItem.cantidad_gramos = null;
+        promoVentaItem.precioUnitario = promo.precioPromo;
+        promoVentaItem.subtotal = subtotalPromo;
+        items.push(promoVentaItem);
+
+        // Desglose de productos reales incluidos (sin precio)
+        for (const p of promo.productos) {
+          const prod = p.producto;
+          const granel = isGranel(prod);
+
+          const productoItem = new VentaItem();
+          productoItem.producto = prod;
+          productoItem.precioUnitario = 0;
+          productoItem.subtotal = 0;
+
+          if (granel) {
+            // si tu pivot de promo tiene 'gramos', úsalo; si no, cae en 0
+            const gramosTot =
+              Number(p.cantidad_gramos ?? 0) * promoItem.cantidad;
+            productoItem.cantidad = null;
+            productoItem.cantidad_gramos = to3(gramosTot).toFixed(3);
+          } else {
+            productoItem.cantidad = (p.cantidad ?? 0) * promoItem.cantidad;
+            productoItem.cantidad_gramos = null;
+          }
+
+          items.push(productoItem);
         }
-
-        items.push(productoItem);
       }
     }
+
+    // 3) Venta + ingresos (mixta)
+    const almacen = await this.dataSource
+      .getRepository(Almacen)
+      .findOneBy({ id: dto.almacenId });
+    if (!almacen)
+      throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
+
+    const venta = this.repo.create({
+      usuario: dto.usuario,
+      almacen,
+      items,
+      total: to2(total),
+      estado: 'CONFIRMADA',
+      fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
+    });
+    const saved = await this.repo.save(venta);
+
+    await this.ingresoVentaRepo.save([
+      { venta: saved, tipo: 'EFECTIVO', monto: dto.montoEfectivo },
+      { venta: saved, tipo: 'BANCARIZADO', monto: dto.montoBancarizado },
+    ]);
+
+    // 4) Bajar stock + movimientos (piezas/gramos)
+    for (const it of items) {
+      if (!it.producto) continue; // el renglón de cobro de la promo no descuenta
+
+      const piezas = it.cantidad ?? 0;
+      const gramos = Number(it.cantidad_gramos ?? 0);
+
+      await this.stockService.changeStock(it.producto.id, dto.almacenId, {
+        deltaPiezas: piezas ? -piezas : 0,
+        deltaGramos: gramos ? -gramos : 0,
+      });
+
+      await this.movService.create({
+        producto_id: it.producto.id,
+        origen_almacen: dto.almacenId,
+        destino_almacen: undefined,
+        cantidad: piezas || undefined, // solo si hubo piezas
+        cantidad_gramos:
+          typeof gramos === 'number' && gramos > 0
+            ? Number(gramos.toFixed(3)) // number (no string)
+            : undefined,
+        tipo: 'salida',
+        motivo: `Venta #${saved.id}`,
+      });
+    }
+
+    return saved;
   }
 
-  // 3) Venta + ingresos (mixta)
-  const almacen = await this.dataSource.getRepository(Almacen).findOneBy({ id: dto.almacenId });
-  if (!almacen) throw new NotFoundException(`Almacén ${dto.almacenId} no encontrado`);
-
-  const venta = this.repo.create({
-    usuario: dto.usuario,
-    almacen,
-    items,
-    total: to2(total),
-    estado: 'CONFIRMADA',
-    fecha: moment().tz('America/Argentina/Buenos_Aires').toDate(),
-  });
-  const saved = await this.repo.save(venta);
-
-  await this.ingresoVentaRepo.save([
-    { venta: saved, tipo: 'EFECTIVO',    monto: dto.montoEfectivo },
-    { venta: saved, tipo: 'BANCARIZADO', monto: dto.montoBancarizado },
-  ]);
-
-  // 4) Bajar stock + movimientos (piezas/gramos)
-  for (const it of items) {
-    if (!it.producto) continue; // el renglón de cobro de la promo no descuenta
-
-    const piezas = it.cantidad ?? 0;
-    const gramos = Number(it.cantidad_gramos ?? 0);
-
-    await this.stockService.changeStock(it.producto.id, dto.almacenId, {
-      deltaPiezas: piezas ? -piezas : 0,
-      deltaGramos: gramos ? -gramos : 0,
-    });
-
-    await this.movService.create({
-      producto_id: it.producto.id,
-      origen_almacen: dto.almacenId,
-      destino_almacen: undefined,
-      cantidad: piezas || undefined,               // solo si hubo piezas
-      cantidad_gramos: (typeof gramos === 'number' && gramos > 0)
-      ? Number(gramos.toFixed(3))                                             // number (no string)
-      : undefined,
-      tipo: 'salida',
-      motivo: `Venta #${saved.id}`,
-    });
+  private isGranel(prod: any): boolean {
+    return prod?.es_por_gramos === true || prod?.unidad?.codigo === 'g';
   }
-
-  return saved;
-}
-
-
-
-private isGranel(prod: any): boolean {
-  return prod?.es_por_gramos === true || prod?.unidad?.codigo === 'g';
-}
-private to2(n: number) { return Number(n.toFixed(2)); }
-private to3(n: number) { return Number(n.toFixed(3)); }
-
-
-
+  private to2(n: number) {
+    return Number(n.toFixed(2));
+  }
+  private to3(n: number) {
+    return Number(n.toFixed(3));
+  }
 }

@@ -87,6 +87,7 @@ export class ProductoService {
           'producto.precio_updated_at',
           // ya lo tenías, lo dejamos
           'producto.es_por_gramos',
+          'producto.proveedorNombre',
           'unidad.id',
           'unidad.nombre',
           'unidad.abreviatura',
@@ -156,6 +157,7 @@ export class ProductoService {
           existingBarcode.precioBase = dto.precioBase;
           existingBarcode.activo = true;
           existingBarcode.updated_at = new Date();
+          existingBarcode.proveedorNombre = dto.proveedorNombre ?? undefined;
 
           return this.repo.save(existingBarcode);
         }
@@ -171,6 +173,7 @@ export class ProductoService {
       barcode: dto.barcode,
       unidad,
       categoria_id: dto.categoria_id,
+      proveedorNombre: dto.proveedorNombre ?? undefined,
       es_por_gramos: this.esGramos(unidad),
       ...(dto.precioBase != null ? { precio_updated_at: new Date() } : {}),
     });
@@ -283,7 +286,8 @@ export class ProductoService {
       .addSelect('producto.precio_updated_at')
       .where('producto.activo = true')
       // 👇 aseguramos que venga el flag (tu lógica de gramos)
-      .addSelect('producto.es_por_gramos');
+      .addSelect('producto.es_por_gramos')
+      .addSelect('producto.proveedorNombre');
 
     if (nombre) {
       query.andWhere('producto.nombre ILIKE :nombre', {
